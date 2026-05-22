@@ -3,3 +3,7 @@ node_modules
 npm-debug.log*
 *.log
 .DS_Store
+data/*
+!data/.gitkeep
+uploads/*
+!uploads/.gitkeep
