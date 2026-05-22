@@ -1,4 +1,4 @@
-const CACHE_NAME = "youtube-lite-v1";
+const CACHE_NAME = "youtube-automation-agent-v1";
 
 const FILES_TO_CACHE = [
   "./",
