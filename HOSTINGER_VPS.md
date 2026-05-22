@@ -14,6 +14,8 @@ Helpful docs:
 ## Files that matter
 
 - `server.js` - Node.js app and OpenRouter backend
+- `youtube-publishing.js` - server-side YouTube OAuth, queue, and upload logic
+- `youtube.html` - YouTube OAuth and publish workspace
 - `app.html` - control room UI
 - `index.html` - public landing page
 - `ecosystem.config.cjs` - PM2 config
@@ -26,30 +28,28 @@ Helpful docs:
 3. Upload the repository to the server or pull it from GitHub.
 4. Enter the repository root on the VPS.
 5. Copy `.env.example` to `.env` and fill in your real values.
-6. Install dependencies:
+6. In Google Cloud Console, create a web OAuth client for YouTube and add `https://your-domain.example/auth/youtube/callback` as an authorized redirect URI.
+7. Install dependencies:
 
 ```bash
 npm install
 ```
 
-7. Install PM2 if it is not already available:
+8. Install PM2 if it is not already available:
 
 ```bash
 npm install -g pm2
 ```
 
-8. Start the app using the PM2 script:
+9. Start the app using the PM2 script:
 
 ```bash
 npm run pm2:start
 pm2 save
 ```
 
-9. Check the app:
-
-- Control room: `/`
-- Landing page: `/landing`
-- Health check: `/api/health`
+10. Open the publisher at `/youtube`, click `Connect channel`, and finish the Google consent flow.
+11. Put rendered MP4 files into `uploads/` and queue them from the publisher page.
 
 ## Reverse proxy
 
@@ -66,11 +66,19 @@ OPENROUTER_TITLE=YouTube Automation Agent
 HTTP_REFERER=https://your-domain.example
 PORT=3456
 APP_URL=https://your-domain.example
+YOUTUBE_CLIENT_ID=your-google-oauth-client-id
+YOUTUBE_CLIENT_SECRET=your-google-oauth-client-secret
+YOUTUBE_REDIRECT_URI=https://your-domain.example/auth/youtube/callback
+YOUTUBE_REFRESH_TOKEN=
+YOUTUBE_DEFAULT_PRIVACY_STATUS=private
+YOUTUBE_DEFAULT_CATEGORY_ID=22
 ```
 
 ## Operational notes
 
-- Keep the OpenRouter API key on the VPS only.
+- Keep the OpenRouter API key and YouTube OAuth tokens on the VPS only.
 - Use PM2 so the process restarts automatically if the VPS reboots.
 - Keep a backup copy of `.env` outside the repo.
-- If you later add YouTube OAuth, store those credentials on the server too.
+- Store rendered videos and thumbnails in `uploads/`.
+- The queue state and OAuth token cache live in `data/`.
+- If your Google Cloud project is unverified, uploaded videos can remain private until the YouTube audit is complete.
