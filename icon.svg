@@ -1,7 +1,32 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <!-- Rounded square background. Maskable-safe: keeps the play triangle
-       inside the iOS/Android safe area (center 80% of the canvas). -->
-  <rect width="512" height="512" rx="115" ry="115" fill="#ff0033"/>
-  <!-- White play triangle, optically centered on the square -->
-  <path d="M205 158 L370 256 L205 354 Z" fill="#ffffff"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="84" y1="60" x2="428" y2="452" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#101a2f" />
+      <stop offset="1" stop-color="#050a14" />
+    </linearGradient>
+    <linearGradient id="accent" x1="150" y1="132" x2="370" y2="376" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ff5d73" />
+      <stop offset="0.54" stop-color="#ff8b61" />
+      <stop offset="1" stop-color="#ffd166" />
+    </linearGradient>
+    <linearGradient id="glow" x1="156" y1="154" x2="362" y2="360" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#38d7c4" stop-opacity="0.35" />
+      <stop offset="1" stop-color="#38d7c4" stop-opacity="0" />
+    </linearGradient>
+  </defs>
+
+  <rect width="512" height="512" rx="114" fill="url(#bg)" />
+  <circle cx="368" cy="132" r="90" fill="url(#glow)" />
+  <circle cx="144" cy="374" r="74" fill="url(#glow)" />
+
+  <rect x="86" y="86" width="340" height="340" rx="96" stroke="rgba(255,255,255,0.10)" stroke-width="4" />
+  <rect x="132" y="132" width="248" height="248" rx="72" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.08)" stroke-width="2" />
+
+  <path d="M208 162L358 256L208 350V162Z" fill="url(#accent)" />
+  <path d="M214 162L348 256L214 350V162Z" fill="rgba(255,255,255,0.18)" />
+
+  <circle cx="170" cy="180" r="10" fill="#38d7c4" />
+  <circle cx="342" cy="178" r="10" fill="#ffd166" />
+  <circle cx="170" cy="332" r="10" fill="#ff5d73" />
+  <circle cx="342" cy="334" r="10" fill="#6da8ff" />
 </svg>
