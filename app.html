@@ -1,0 +1,952 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#07111f" />
+  <meta name="description" content="OpenRouter control room for generating YouTube content packs from your Hostinger VPS." />
+  <title>OpenRouter Control Room</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #06101a;
+      --bg2: #090f1b;
+      --panel: rgba(12, 20, 36, 0.84);
+      --panel2: rgba(8, 13, 24, 0.95);
+      --line: rgba(255, 255, 255, 0.08);
+      --text: #f6f8ff;
+      --muted: #a7b2c8;
+      --accent: #ff5d73;
+      --accent2: #38d7c4;
+      --accent3: #ffd166;
+      --shadow: 0 24px 70px rgba(0, 0, 0, 0.35);
+      --radius-xl: 30px;
+      --radius-lg: 22px;
+      --radius-md: 18px;
+      --radius-sm: 14px;
+      --container: 1180px;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      font-family: "Avenir Next", "Segoe UI Variable Display", "SF Pro Display", "Helvetica Neue", ui-sans-serif, system-ui, sans-serif;
+      background:
+        radial-gradient(circle at 18% 12%, rgba(56, 215, 196, 0.18), transparent 22%),
+        radial-gradient(circle at 82% 10%, rgba(255, 93, 115, 0.2), transparent 20%),
+        radial-gradient(circle at 70% 82%, rgba(255, 209, 102, 0.13), transparent 24%),
+        linear-gradient(180deg, #09111e 0%, var(--bg) 42%, var(--bg2) 100%);
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background-image:
+        linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+      background-size: 42px 42px;
+      mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.45), transparent 86%);
+      opacity: 0.75;
+    }
+
+    a { color: inherit; }
+    img, svg { display: block; max-width: 100%; }
+
+    .shell {
+      width: min(var(--container), calc(100% - 28px));
+      margin: 0 auto;
+      padding: 20px 0 40px;
+      position: relative;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 16px;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 16px 18px;
+      border-radius: 22px;
+      border: 1px solid var(--line);
+      background: rgba(8, 14, 26, 0.75);
+      box-shadow: 0 18px 50px rgba(0, 0, 0, 0.25);
+      backdrop-filter: blur(18px);
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+    }
+
+    .brand-mark {
+      width: 42px;
+      height: 42px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, var(--accent) 0%, #ff8b61 46%, var(--accent3) 100%);
+      position: relative;
+      box-shadow: 0 18px 36px rgba(255, 93, 115, 0.28);
+      flex: 0 0 auto;
+    }
+
+    .brand-mark::after {
+      content: "";
+      position: absolute;
+      inset: 12px 12px 12px 15px;
+      clip-path: polygon(0 0, 100% 50%, 0 100%);
+      background: rgba(255, 255, 255, 0.95);
+    }
+
+    .brand-copy { display: grid; gap: 2px; }
+    .brand-copy strong { font-size: 0.98rem; letter-spacing: -0.02em; }
+    .brand-copy span { color: var(--muted); font-size: 0.82rem; }
+
+    .nav {
+      display: flex;
+      align-items: center;
+      gap: 8px 14px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .nav a {
+      text-decoration: none;
+      color: var(--muted);
+      font-size: 0.93rem;
+      font-weight: 600;
+      transition: color 140ms ease, transform 140ms ease;
+    }
+
+    .nav a:hover,
+    .nav a:focus-visible {
+      color: var(--text);
+      transform: translateY(-1px);
+    }
+
+    .nav .cta {
+      padding: 10px 14px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text);
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.05fr) minmax(320px, 0.95fr);
+      gap: 24px;
+      align-items: center;
+      padding: 52px 0 26px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 14px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.04);
+      color: #d9e3f6;
+      font-size: 0.84rem;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+
+    .eyebrow::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent2);
+      box-shadow: 0 0 0 6px rgba(56, 215, 196, 0.12);
+    }
+
+    h1 {
+      margin: 18px 0 16px;
+      max-width: 10.5ch;
+      font-size: clamp(3.1rem, 8vw, 6rem);
+      line-height: 0.92;
+      letter-spacing: -0.08em;
+    }
+
+    .lead {
+      margin: 0;
+      max-width: 66ch;
+      color: var(--muted);
+      line-height: 1.72;
+      font-size: clamp(1.02rem, 1.55vw, 1.12rem);
+    }
+
+    .cta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 26px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 50px;
+      padding: 0 18px;
+      border-radius: 999px;
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 0.98rem;
+      border: 1px solid transparent;
+      transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+    }
+
+    .btn:hover,
+    .btn:focus-visible {
+      transform: translateY(-1px);
+    }
+
+    .btn.primary {
+      color: #08101d;
+      background: linear-gradient(135deg, var(--accent) 0%, #ff7e5e 100%);
+      box-shadow: 0 14px 34px rgba(255, 93, 115, 0.28);
+    }
+
+    .btn.secondary {
+      color: var(--text);
+      background: rgba(255, 255, 255, 0.04);
+      border-color: var(--line);
+    }
+
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 28px;
+    }
+
+    .stat,
+    .card {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .stat {
+      padding: 16px;
+    }
+
+    .stat strong {
+      display: block;
+      font-size: 1.3rem;
+      letter-spacing: -0.05em;
+    }
+
+    .stat span {
+      display: block;
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 0.9rem;
+      line-height: 1.45;
+    }
+
+    .dashboard {
+      display: grid;
+      gap: 16px;
+    }
+
+    .dashboard-panel {
+      padding: 20px;
+      border-radius: var(--radius-xl);
+      border: 1px solid var(--line);
+      background:
+        linear-gradient(180deg, rgba(13, 22, 40, 0.96) 0%, rgba(8, 13, 24, 0.96) 100%);
+      box-shadow: var(--shadow);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .dashboard-panel::before {
+      content: "";
+      position: absolute;
+      inset: auto -15% -35% auto;
+      width: 220px;
+      height: 220px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(56, 215, 196, 0.22), transparent 72%);
+      pointer-events: none;
+    }
+
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .panel-head strong {
+      font-size: 1.02rem;
+      letter-spacing: -0.02em;
+    }
+
+    .panel-head span {
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .health-row {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .health-box {
+      padding: 14px;
+      border-radius: 18px;
+      background: rgba(6, 11, 18, 0.52);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .health-box span {
+      display: block;
+      color: var(--muted);
+      font-size: 0.76rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+
+    .health-box strong {
+      display: block;
+      font-size: 1.08rem;
+      letter-spacing: -0.03em;
+      word-break: break-word;
+    }
+
+    .chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .chip {
+      padding: 9px 12px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: #d7def0;
+      font-size: 0.9rem;
+      font-weight: 600;
+    }
+
+    .section {
+      margin-top: 90px;
+    }
+
+    .section-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: end;
+      margin-bottom: 22px;
+    }
+
+    .section-head .copy {
+      max-width: 72ch;
+      color: var(--muted);
+      line-height: 1.7;
+      font-size: 1.02rem;
+      margin: 12px 0 0;
+    }
+
+    .section-kicker {
+      margin: 0 0 10px;
+      color: var(--accent3);
+      font-size: 0.8rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      font-weight: 800;
+    }
+
+    .section h2 {
+      margin: 0;
+      font-size: clamp(2rem, 4vw, 3rem);
+      line-height: 1.02;
+      letter-spacing: -0.05em;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .card {
+      position: relative;
+      padding: 20px;
+    }
+
+    .card::before {
+      content: "";
+      position: absolute;
+      inset: 0 auto auto 0;
+      width: 100%;
+      height: 2px;
+      background: linear-gradient(90deg, var(--accent) 0%, var(--accent2) 50%, var(--accent3) 100%);
+      opacity: 0.5;
+    }
+
+    .card h3 {
+      margin: 0 0 10px;
+      font-size: 1.08rem;
+      letter-spacing: -0.03em;
+    }
+
+    .card p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.65;
+    }
+
+    .form {
+      display: grid;
+      gap: 14px;
+    }
+
+    .fields {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .field {
+      display: grid;
+      gap: 8px;
+    }
+
+    .field label {
+      font-size: 0.84rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #d7def0;
+      font-weight: 700;
+    }
+
+    .field input,
+    .field select,
+    .field textarea {
+      width: 100%;
+      border-radius: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(6, 11, 18, 0.58);
+      color: var(--text);
+      padding: 14px 15px;
+      font: inherit;
+      outline: none;
+      transition: border-color 140ms ease, box-shadow 140ms ease;
+    }
+
+    .field input:focus,
+    .field select:focus,
+    .field textarea:focus {
+      border-color: rgba(56, 215, 196, 0.45);
+      box-shadow: 0 0 0 4px rgba(56, 215, 196, 0.1);
+    }
+
+    .field textarea {
+      min-height: 140px;
+      resize: vertical;
+    }
+
+    .form-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 2px;
+    }
+
+    .helper {
+      color: var(--muted);
+      font-size: 0.92rem;
+      line-height: 1.6;
+    }
+
+    .submit {
+      min-height: 50px;
+      border: 0;
+      border-radius: 999px;
+      padding: 0 18px;
+      font: inherit;
+      font-weight: 800;
+      color: #08101d;
+      background: linear-gradient(135deg, var(--accent) 0%, #ff7e5e 100%);
+      cursor: pointer;
+      box-shadow: 0 14px 34px rgba(255, 93, 115, 0.28);
+    }
+
+    .submit:hover,
+    .submit:focus-visible {
+      transform: translateY(-1px);
+    }
+
+    .console {
+      background: #050a14;
+      border-radius: 22px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 18px;
+      min-height: 500px;
+      overflow: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: #f5f8ff;
+      line-height: 1.6;
+      font-family: "Cascadia Code", "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 0.93rem;
+    }
+
+    .label-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .label-row .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 11px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: #d7def0;
+      font-size: 0.76rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      font-weight: 800;
+    }
+
+    .label-row .badge::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent2);
+      box-shadow: 0 0 0 6px rgba(56, 215, 196, 0.12);
+    }
+
+    .list {
+      margin: 14px 0 0;
+      padding: 0;
+      list-style: none;
+      display: grid;
+      gap: 10px;
+      color: #d7def0;
+    }
+
+    .list li {
+      position: relative;
+      padding-left: 18px;
+      line-height: 1.55;
+    }
+
+    .list li::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0.5em;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--accent2);
+      box-shadow: 0 0 0 5px rgba(56, 215, 196, 0.08);
+    }
+
+    .footer {
+      margin: 88px 0 8px;
+      padding: 22px 20px;
+      border-radius: 24px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--muted);
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 14px;
+      align-items: center;
+    }
+
+    .footer strong {
+      color: var(--text);
+    }
+
+    .footer a {
+      color: var(--text);
+      text-decoration: none;
+      font-weight: 700;
+    }
+
+    .error {
+      color: #ffb4c0;
+    }
+
+    @media (max-width: 1060px) {
+      .hero,
+      .grid-2 {
+        grid-template-columns: 1fr;
+      }
+
+      .section-head {
+        flex-direction: column;
+        align-items: start;
+      }
+    }
+
+    @media (max-width: 760px) {
+      .shell {
+        width: min(var(--container), calc(100% - 18px));
+        padding-top: 12px;
+      }
+
+      .topbar {
+        padding: 14px;
+        border-radius: 18px;
+        position: relative;
+        top: auto;
+      }
+
+      .nav {
+        justify-content: flex-start;
+      }
+
+      .hero {
+        padding-top: 42px;
+      }
+
+      h1 {
+        max-width: 9.4ch;
+      }
+
+      .meta-grid,
+      .health-row,
+      .fields {
+        grid-template-columns: 1fr;
+      }
+
+      .footer {
+        align-items: start;
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <a class="brand" href="/landing" aria-label="Landing page">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span class="brand-copy">
+          <strong>YouTube Automation Agent</strong>
+          <span>OpenRouter control room</span>
+        </span>
+      </a>
+
+      <nav class="nav" aria-label="Primary">
+        <a href="#generator">Generator</a>
+        <a href="#notes">Notes</a>
+        <a href="/landing">Landing page</a>
+        <a class="cta" href="/api/health">API health</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div>
+          <div class="eyebrow">VPS-ready OpenRouter backend</div>
+          <h1>Run the content engine from your Hostinger VPS.</h1>
+          <p class="lead">
+            This dashboard calls your server-side OpenRouter integration, keeps the API key off the browser, and generates a YouTube content pack you can use for scripts, thumbnails, SEO, and publishing notes.
+          </p>
+          <div class="cta-row">
+            <a class="btn primary" href="#generator">Generate a pack</a>
+            <a class="btn secondary" href="/api/health">Check backend</a>
+          </div>
+
+          <div class="meta-grid">
+            <div class="stat">
+              <strong id="healthService">Loading...</strong>
+              <span>Server service</span>
+            </div>
+            <div class="stat">
+              <strong id="healthModel">Loading...</strong>
+              <span>OpenRouter model</span>
+            </div>
+            <div class="stat">
+              <strong id="healthKey">Loading...</strong>
+              <span>API key status</span>
+            </div>
+          </div>
+        </div>
+
+        <aside class="dashboard">
+          <div class="dashboard-panel">
+            <div class="panel-head">
+              <div>
+                <strong>Current runtime</strong><br />
+                <span>What the VPS is serving right now</span>
+              </div>
+              <span class="eyebrow" style="padding: 8px 11px; font-size: 0.72rem; letter-spacing: 0.12em;">Live</span>
+            </div>
+            <div class="health-row">
+              <div class="health-box">
+                <span>Endpoint</span>
+                <strong>/api/generate</strong>
+              </div>
+              <div class="health-box">
+                <span>Base URL</span>
+                <strong id="baseUrl">Detecting...</strong>
+              </div>
+              <div class="health-box">
+                <span>Uptime</span>
+                <strong id="uptime">Detecting...</strong>
+              </div>
+            </div>
+            <p style="margin:0; color: var(--muted); line-height: 1.65;">
+              Use this console to create a draft video package and then feed it into your YouTube workflow. Keep the VPS running with PM2 so the system stays online all day.
+            </p>
+            <div class="chip-row">
+              <span class="chip">OpenRouter API</span>
+              <span class="chip">Hostinger VPS</span>
+              <span class="chip">PM2</span>
+              <span class="chip">Server-side key</span>
+            </div>
+          </div>
+        </aside>
+      </section>
+
+      <section class="section" id="generator">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">Content generator</p>
+            <h2>Ask the model for a complete YouTube content pack.</h2>
+            <p class="copy">
+              The prompt is crafted to produce a title, hook, outline, script, thumbnail text, SEO metadata, tags, and next steps. The API key stays on the server.
+            </p>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <article class="card">
+            <div class="label-row">
+              <div>
+                <h3 style="margin:0;">Generate content</h3>
+                <p style="margin:6px 0 0; color: var(--muted);">Fill out the prompt and run it against OpenRouter.</p>
+              </div>
+              <span class="badge">Server side</span>
+            </div>
+
+            <form class="form" id="generateForm">
+              <div class="fields">
+                <div class="field">
+                  <label for="topic">Topic</label>
+                  <input id="topic" name="topic" type="text" placeholder="Top 10 AI tools for creators" required />
+                </div>
+
+                <div class="field">
+                  <label for="audience">Audience</label>
+                  <input id="audience" name="audience" type="text" placeholder="YouTube creators" />
+                </div>
+
+                <div class="field">
+                  <label for="style">Style</label>
+                  <select id="style" name="style">
+                    <option>tutorial</option>
+                    <option>listicle</option>
+                    <option>review</option>
+                    <option>story</option>
+                    <option>news</option>
+                  </select>
+                </div>
+
+                <div class="field">
+                  <label for="tone">Tone</label>
+                  <select id="tone" name="tone">
+                    <option>clear, engaging, and practical</option>
+                    <option>energetic and high-retention</option>
+                    <option>calm and trustworthy</option>
+                    <option>bold and cinematic</option>
+                    <option>friendly and conversational</option>
+                  </select>
+                </div>
+
+                <div class="field">
+                  <label for="length">Target length</label>
+                  <select id="length" name="length">
+                    <option>about 6 minutes</option>
+                    <option selected>about 8 minutes</option>
+                    <option>about 12 minutes</option>
+                    <option>about 15 minutes</option>
+                  </select>
+                </div>
+
+                <div class="field">
+                  <label for="model">OpenRouter model</label>
+                  <input id="model" name="model" type="text" placeholder="openai/gpt-4o-mini" />
+                </div>
+              </div>
+
+              <div class="form-footer">
+                <div class="helper">
+                  Tip: set the real model in `.env` and leave this field blank unless you want to override it for one request.
+                </div>
+                <button class="submit" type="submit">Generate pack</button>
+              </div>
+            </form>
+          </article>
+
+          <article class="card">
+            <div class="label-row">
+              <div>
+                <h3 style="margin:0;">Response console</h3>
+                <p style="margin:6px 0 0; color: var(--muted);">The generated JSON appears here after the request finishes.</p>
+              </div>
+              <span class="badge">JSON output</span>
+            </div>
+
+            <pre class="console" id="consoleOutput">Ready. Enter a topic and generate your first content pack.</pre>
+          </article>
+        </div>
+      </section>
+
+      <section class="section" id="notes">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">Deployment notes</p>
+            <h2>Keep the VPS alive with PM2 and put the API key only on the server.</h2>
+            <p class="copy">
+              Hostinger's VPS docs support Node.js deployments and PM2 restarts. The flow here is simple: upload the repo, install dependencies, add the environment values, and keep `server.js` running.
+            </p>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <article class="card">
+            <h3>Environment variables</h3>
+            <ul class="list">
+              <li><strong>OPENROUTER_API_KEY</strong> - your server-side OpenRouter key</li>
+              <li><strong>OPENROUTER_MODEL</strong> - the model you want to use by default</li>
+              <li><strong>OPENROUTER_TITLE</strong> - the app title shown in OpenRouter headers</li>
+              <li><strong>HTTP_REFERER</strong> - your site URL for OpenRouter attribution</li>
+              <li><strong>PORT</strong> - the port your VPS site listens on</li>
+            </ul>
+          </article>
+
+          <article class="card">
+            <h3>What this app already does</h3>
+            <ul class="list">
+              <li>Serves a public landing page at <strong>/landing</strong></li>
+              <li>Serves the control room at <strong>/</strong></li>
+              <li>Checks health at <strong>/api/health</strong></li>
+              <li>Generates a YouTube content pack at <strong>/api/generate</strong></li>
+              <li>Uses server-side OpenRouter requests so the API key never reaches the browser</li>
+            </ul>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div>
+        <strong>OpenRouter control room</strong><br />
+        <span>The landing page still lives in the repo, but this VPS app is the piece that actually does the work.</span>
+      </div>
+      <div>
+        <a href="/landing">Open landing page</a>
+      </div>
+    </footer>
+  </div>
+
+  <script>
+    const consoleOutput = document.getElementById('consoleOutput');
+    const generateForm = document.getElementById('generateForm');
+    const healthService = document.getElementById('healthService');
+    const healthModel = document.getElementById('healthModel');
+    const healthKey = document.getElementById('healthKey');
+    const baseUrl = document.getElementById('baseUrl');
+    const uptime = document.getElementById('uptime');
+
+    baseUrl.textContent = window.location.origin;
+
+    async function loadHealth() {
+      try {
+        const response = await fetch('/api/health');
+        const data = await response.json();
+
+        healthService.textContent = data.service || 'Unknown';
+        healthModel.textContent = data.model || 'Unknown';
+        healthKey.textContent = data.openrouterConfigured ? 'Configured' : 'Missing';
+        uptime.textContent = data.uptimeSeconds ? `${data.uptimeSeconds}s` : 'Unknown';
+      } catch (error) {
+        healthService.textContent = 'Offline';
+        healthModel.textContent = 'Unknown';
+        healthKey.textContent = 'Unknown';
+        uptime.textContent = 'Unknown';
+        consoleOutput.textContent = `Unable to reach /api/health: ${error.message}`;
+        consoleOutput.classList.add('error');
+      }
+    }
+
+    function prettyPrint(value) {
+      return JSON.stringify(value, null, 2);
+    }
+
+    generateForm.addEventListener('submit', async function (event) {
+      event.preventDefault();
+      consoleOutput.classList.remove('error');
+      consoleOutput.textContent = 'Generating content pack...';
+
+      const formData = new FormData(generateForm);
+      const payload = Object.fromEntries(formData.entries());
+
+      try {
+        const response = await fetch('/api/generate', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok || !data.ok) {
+          throw new Error(data.error || 'The server returned an error.');
+        }
+
+        consoleOutput.textContent = prettyPrint(data.result);
+      } catch (error) {
+        consoleOutput.classList.add('error');
+        consoleOutput.textContent = `Error: ${error.message}`;
+      }
+    });
+
+    loadHealth();
+  </script>
+</body>
+</html>
