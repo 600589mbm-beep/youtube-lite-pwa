@@ -2,6 +2,7 @@ import express from 'express';
 import dotenv from 'dotenv';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createYouTubeRouter } from './youtube-publishing.js';
 
 dotenv.config();
 
@@ -14,9 +15,11 @@ const APP_TITLE = process.env.OPENROUTER_TITLE || 'YouTube Automation Agent';
 const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini';
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || '';
 const HTTP_REFERER = process.env.HTTP_REFERER || process.env.APP_URL || 'http://localhost:3456';
+const APP_URL = process.env.APP_URL || HTTP_REFERER;
 
 app.use(express.json({ limit: '1mb' }));
 app.use(express.static(__dirname, { extensions: ['html'], index: false }));
+app.use(createYouTubeRouter({ baseDir: __dirname, appUrl: APP_URL }));
 
 app.get('/', function (_req, res) {
   res.sendFile(path.join(__dirname, 'app.html'));
@@ -32,6 +35,8 @@ app.get('/api/health', function (_req, res) {
     service: APP_TITLE,
     model: OPENROUTER_MODEL,
     openrouterConfigured: Boolean(OPENROUTER_API_KEY),
+    youtubeConfigured: Boolean(process.env.YOUTUBE_CLIENT_ID && process.env.YOUTUBE_CLIENT_SECRET),
+    youtubeWorkspace: '/youtube',
     uptimeSeconds: Math.round(process.uptime()),
   });
 });
