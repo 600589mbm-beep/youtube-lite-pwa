@@ -16,7 +16,7 @@ const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || '';
 const HTTP_REFERER = process.env.HTTP_REFERER || process.env.APP_URL || 'http://localhost:3456';
 
 app.use(express.json({ limit: '1mb' }));
-app.use(express.static(__dirname, { extensions: ['html'] }));
+app.use(express.static(__dirname, { extensions: ['html'], index: false }));
 
 app.get('/', function (_req, res) {
   res.sendFile(path.join(__dirname, 'app.html'));
