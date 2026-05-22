@@ -1,11 +1,12 @@
 {
-  "name": "YouTube Lite",
-  "short_name": "YT Lite",
-  "description": "A clean iPhone Home Screen launcher for YouTube.",
+  "name": "YouTube Automation Agent",
+  "short_name": "YT Agent",
+  "description": "A GitHub Pages landing site for an AI-powered YouTube automation system.",
   "start_url": "./",
+  "scope": "./",
   "display": "standalone",
-  "background_color": "#0f0f0f",
-  "theme_color": "#0f0f0f",
+  "background_color": "#07111f",
+  "theme_color": "#07111f",
   "icons": [
     {
       "src": "icon.svg",
