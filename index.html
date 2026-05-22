@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f0f0f" />
+
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="YouTube Lite" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="icon.svg" />
+
+  <title>YouTube Lite</title>
+
+  <style>
+    :root {
+      --bg: #0f0f0f;
+      --card: #1c1c1c;
+      --text: #ffffff;
+      --muted: #b8b8b8;
+      --red: #ff0033;
+      --border: #2b2b2b;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      background: radial-gradient(circle at top, #2a0008 0%, var(--bg) 42%);
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 22px;
+    }
+
+    .app {
+      width: 100%;
+      max-width: 430px;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+
+    .logo {
+      width: 78px;
+      height: 78px;
+      border-radius: 24px;
+      background: var(--red);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 18px 50px rgba(255, 0, 51, 0.35);
+      margin-bottom: 14px;
+    }
+
+    .play {
+      width: 0;
+      height: 0;
+      border-top: 16px solid transparent;
+      border-bottom: 16px solid transparent;
+      border-left: 25px solid white;
+      margin-left: 6px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 34px;
+      letter-spacing: -0.04em;
+    }
+
+    p {
+      color: var(--muted);
+      line-height: 1.5;
+      margin: 8px 0 0;
+      font-size: 15px;
+    }
+
+    .card {
+      background: rgba(28, 28, 28, 0.92);
+      border: 1px solid var(--border);
+      border-radius: 28px;
+      padding: 18px;
+      box-shadow: 0 22px 60px rgba(0, 0, 0, 0.35);
+      backdrop-filter: blur(18px);
+    }
+
+    .search {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    input {
+      flex: 1;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: #111;
+      color: var(--text);
+      font-size: 16px;
+      padding: 14px 15px;
+      outline: none;
+    }
+
+    input:focus {
+      border-color: var(--red);
+    }
+
+    button,
+    .link-button {
+      width: 100%;
+      border: 0;
+      border-radius: 16px;
+      background: #ffffff;
+      color: #000000;
+      font-weight: 800;
+      font-size: 16px;
+      padding: 15px 16px;
+      cursor: pointer;
+      text-decoration: none;
+      display: block;
+      text-align: center;
+      margin-top: 10px;
+    }
+
+    .primary {
+      background: var(--red);
+      color: #ffffff;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .grid .link-button {
+      margin-top: 0;
+      background: #252525;
+      color: #ffffff;
+      border: 1px solid var(--border);
+    }
+
+    .note {
+      margin-top: 16px;
+      padding: 13px;
+      border-radius: 16px;
+      background: #121212;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .footer {
+      margin-top: 16px;
+      text-align: center;
+      font-size: 12px;
+      color: #858585;
+    }
+  </style>
+</head>
+
+<body>
+  <main class="app">
+    <section class="header">
+      <div class="logo" aria-hidden="true">
+        <div class="play"></div>
+      </div>
+      <h1>YouTube Lite</h1>
+      <p>A clean iPhone Home Screen launcher for YouTube.</p>
+    </section>
+
+    <section class="card">
+      <form class="search" id="searchForm">
+        <input id="searchInput" type="search" placeholder="Search YouTube..." autocomplete="off" />
+      </form>
+
+      <button class="primary" id="searchButton">Search YouTube</button>
+
+      <a class="link-button" href="https://m.youtube.com/">Open YouTube Home</a>
+
+      <div class="grid">
+        <a class="link-button" href="https://m.youtube.com/feed/subscriptions">Subscriptions</a>
+        <a class="link-button" href="https://m.youtube.com/shorts">Shorts</a>
+        <a class="link-button" href="https://m.youtube.com/feed/history">History</a>
+        <a class="link-button" href="https://m.youtube.com/feed/explore">Explore</a>
+      </div>
+
+      <div class="note">
+        This launcher does not block YouTube ads by itself. For an official ad-free experience, use YouTube Premium or Premium Lite where available.
+      </div>
+    </section>
+
+    <div class="footer">
+      Add this page to your iPhone Home Screen to use it like an app.
+    </div>
+  </main>
+
+  <script>
+    const searchForm = document.getElementById("searchForm");
+    const searchButton = document.getElementById("searchButton");
+    const searchInput = document.getElementById("searchInput");
+
+    function searchYouTube() {
+      const query = searchInput.value.trim();
+
+      if (!query) {
+        window.location.href = "https://m.youtube.com/";
+        return;
+      }
+
+      const url = "https://m.youtube.com/results?search_query=" + encodeURIComponent(query);
+      window.location.href = url;
+    }
+
+    searchForm.addEventListener("submit", function (event) {
+      event.preventDefault();
+      searchYouTube();
+    });
+
+    searchButton.addEventListener("click", searchYouTube);
+
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", function () {
+        navigator.serviceWorker.register("./sw.js").catch(function () {});
+      });
+    }
+  </script>
+</body>
+</html>

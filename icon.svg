@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Rounded square background. Maskable-safe: keeps the play triangle
+       inside the iOS/Android safe area (center 80% of the canvas). -->
+  <rect width="512" height="512" rx="115" ry="115" fill="#ff0033"/>
+  <!-- White play triangle, optically centered on the square -->
+  <path d="M205 158 L370 256 L205 354 Z" fill="#ffffff"/>
+</svg>
