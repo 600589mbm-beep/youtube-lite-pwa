@@ -1,0 +1,1170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#07111f" />
+  <meta name="description" content="Connect your YouTube channel with OAuth and queue uploads from your Hostinger VPS." />
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="./icon.svg" />
+  <title>YouTube Publisher</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #06101a;
+      --bg2: #090f1b;
+      --panel: rgba(12, 20, 36, 0.86);
+      --panel2: rgba(8, 13, 24, 0.95);
+      --line: rgba(255, 255, 255, 0.08);
+      --text: #f6f8ff;
+      --muted: #a7b2c8;
+      --accent: #5eead4;
+      --accent2: #ffd166;
+      --accent3: #ff5d73;
+      --shadow: 0 24px 70px rgba(0, 0, 0, 0.35);
+      --radius-xl: 30px;
+      --radius-lg: 22px;
+      --radius-md: 18px;
+      --container: 1180px;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      font-family: "Avenir Next", "Segoe UI Variable Display", "SF Pro Display", "Helvetica Neue", ui-sans-serif, system-ui, sans-serif;
+      background:
+        radial-gradient(circle at 18% 12%, rgba(94, 234, 212, 0.16), transparent 22%),
+        radial-gradient(circle at 82% 10%, rgba(255, 93, 115, 0.2), transparent 20%),
+        radial-gradient(circle at 70% 82%, rgba(255, 209, 102, 0.13), transparent 24%),
+        linear-gradient(180deg, #09111e 0%, var(--bg) 42%, var(--bg2) 100%);
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background-image:
+        linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+      background-size: 42px 42px;
+      mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.45), transparent 86%);
+      opacity: 0.75;
+    }
+
+    a { color: inherit; }
+    img, svg { display: block; max-width: 100%; }
+
+    .shell {
+      width: min(var(--container), calc(100% - 28px));
+      margin: 0 auto;
+      padding: 20px 0 40px;
+      position: relative;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 16px;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 16px 18px;
+      border-radius: 22px;
+      border: 1px solid var(--line);
+      background: rgba(8, 14, 26, 0.76);
+      box-shadow: 0 18px 50px rgba(0, 0, 0, 0.25);
+      backdrop-filter: blur(18px);
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+    }
+
+    .brand-mark {
+      width: 42px;
+      height: 42px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, var(--accent3) 0%, #ff8b61 46%, var(--accent2) 100%);
+      position: relative;
+      box-shadow: 0 18px 36px rgba(255, 93, 115, 0.28);
+      flex: 0 0 auto;
+    }
+
+    .brand-mark::after {
+      content: "";
+      position: absolute;
+      inset: 12px 12px 12px 15px;
+      clip-path: polygon(0 0, 100% 50%, 0 100%);
+      background: rgba(255, 255, 255, 0.95);
+    }
+
+    .brand-copy { display: grid; gap: 2px; }
+    .brand-copy strong { font-size: 0.98rem; letter-spacing: -0.02em; }
+    .brand-copy span { color: var(--muted); font-size: 0.82rem; }
+
+    .nav {
+      display: flex;
+      align-items: center;
+      gap: 8px 14px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .nav a {
+      text-decoration: none;
+      color: var(--muted);
+      font-size: 0.93rem;
+      font-weight: 600;
+      transition: color 140ms ease, transform 140ms ease;
+    }
+
+    .nav a:hover,
+    .nav a:focus-visible {
+      color: var(--text);
+      transform: translateY(-1px);
+    }
+
+    .nav .cta {
+      padding: 10px 14px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text);
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.04fr) minmax(320px, 0.96fr);
+      gap: 24px;
+      align-items: center;
+      padding: 52px 0 26px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 14px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.04);
+      color: #d9e3f6;
+      font-size: 0.84rem;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+
+    .eyebrow::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 0 6px rgba(94, 234, 212, 0.12);
+    }
+
+    h1 {
+      margin: 18px 0 16px;
+      max-width: 11.2ch;
+      font-size: clamp(3rem, 8vw, 6rem);
+      line-height: 0.92;
+      letter-spacing: -0.08em;
+    }
+
+    .lead {
+      margin: 0;
+      max-width: 64ch;
+      color: var(--muted);
+      line-height: 1.72;
+      font-size: clamp(1.02rem, 1.55vw, 1.12rem);
+    }
+
+    .cta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 26px;
+    }
+
+    .btn,
+    .submit,
+    .mini-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 50px;
+      padding: 0 18px;
+      border-radius: 999px;
+      text-decoration: none;
+      font-weight: 800;
+      font-size: 0.98rem;
+      border: 1px solid transparent;
+      transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+      cursor: pointer;
+    }
+
+    .btn:hover,
+    .btn:focus-visible,
+    .submit:hover,
+    .submit:focus-visible,
+    .mini-btn:hover,
+    .mini-btn:focus-visible {
+      transform: translateY(-1px);
+    }
+
+    .btn.primary,
+    .submit,
+    .mini-btn.primary {
+      color: #08101d;
+      background: linear-gradient(135deg, var(--accent) 0%, #8ef2e1 100%);
+      box-shadow: 0 14px 34px rgba(94, 234, 212, 0.24);
+    }
+
+    .btn.secondary,
+    .mini-btn.secondary {
+      color: var(--text);
+      background: rgba(255, 255, 255, 0.04);
+      border-color: var(--line);
+    }
+
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 28px;
+    }
+
+    .stat,
+    .card,
+    .panel {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .stat {
+      padding: 16px;
+    }
+
+    .stat strong {
+      display: block;
+      font-size: 1.18rem;
+      letter-spacing: -0.04em;
+    }
+
+    .stat span {
+      display: block;
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 0.9rem;
+      line-height: 1.45;
+    }
+
+    .panel {
+      padding: 20px;
+      border-radius: var(--radius-xl);
+      background:
+        linear-gradient(180deg, rgba(13, 22, 40, 0.96) 0%, rgba(8, 13, 24, 0.96) 100%);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .panel::before {
+      content: "";
+      position: absolute;
+      inset: auto -15% -35% auto;
+      width: 220px;
+      height: 220px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(94, 234, 212, 0.22), transparent 72%);
+      pointer-events: none;
+    }
+
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .panel-head strong {
+      font-size: 1.02rem;
+      letter-spacing: -0.02em;
+    }
+
+    .panel-head span {
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .health-row {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .health-box {
+      padding: 14px;
+      border-radius: 18px;
+      background: rgba(6, 11, 18, 0.52);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .health-box span {
+      display: block;
+      color: var(--muted);
+      font-size: 0.76rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+
+    .health-box strong {
+      display: block;
+      font-size: 1.02rem;
+      letter-spacing: -0.03em;
+      word-break: break-word;
+    }
+
+    .chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .chip {
+      padding: 9px 12px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: #d7def0;
+      font-size: 0.9rem;
+      font-weight: 600;
+    }
+
+    .section {
+      margin-top: 90px;
+    }
+
+    .section-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: end;
+      margin-bottom: 22px;
+    }
+
+    .section-head .copy {
+      max-width: 72ch;
+      color: var(--muted);
+      line-height: 1.7;
+      font-size: 1.02rem;
+      margin: 12px 0 0;
+    }
+
+    .section-kicker {
+      margin: 0 0 10px;
+      color: var(--accent2);
+      font-size: 0.8rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      font-weight: 800;
+    }
+
+    .section h2 {
+      margin: 0;
+      font-size: clamp(2rem, 4vw, 3rem);
+      line-height: 1.02;
+      letter-spacing: -0.05em;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .card {
+      position: relative;
+      padding: 20px;
+    }
+
+    .card::before {
+      content: "";
+      position: absolute;
+      inset: 0 auto auto 0;
+      width: 100%;
+      height: 2px;
+      background: linear-gradient(90deg, var(--accent3) 0%, var(--accent) 50%, var(--accent2) 100%);
+      opacity: 0.5;
+    }
+
+    .card h3 {
+      margin: 0 0 10px;
+      font-size: 1.08rem;
+      letter-spacing: -0.03em;
+    }
+
+    .card p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.65;
+    }
+
+    .form {
+      display: grid;
+      gap: 14px;
+    }
+
+    .fields {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .field {
+      display: grid;
+      gap: 8px;
+    }
+
+    .field label {
+      font-size: 0.84rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #d7def0;
+      font-weight: 700;
+    }
+
+    .field input,
+    .field select,
+    .field textarea {
+      width: 100%;
+      border-radius: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(6, 11, 18, 0.58);
+      color: var(--text);
+      padding: 14px 15px;
+      font: inherit;
+      outline: none;
+      transition: border-color 140ms ease, box-shadow 140ms ease;
+    }
+
+    .field input:focus,
+    .field select:focus,
+    .field textarea:focus {
+      border-color: rgba(94, 234, 212, 0.45);
+      box-shadow: 0 0 0 4px rgba(94, 234, 212, 0.1);
+    }
+
+    .field textarea {
+      min-height: 140px;
+      resize: vertical;
+    }
+
+    .field small,
+    .helper,
+    .note {
+      color: var(--muted);
+      font-size: 0.92rem;
+      line-height: 1.6;
+    }
+
+    .inline-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .inline-row input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      margin: 0;
+      accent-color: var(--accent);
+    }
+
+    .form-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 2px;
+    }
+
+    .console {
+      background: #050a14;
+      border-radius: 22px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 18px;
+      min-height: 500px;
+      overflow: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: #f5f8ff;
+      line-height: 1.6;
+      font-family: "Cascadia Code", "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 0.93rem;
+    }
+
+    .queue-list {
+      display: grid;
+      gap: 12px;
+    }
+
+    .queue-item {
+      padding: 18px;
+      border-radius: 20px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(6, 11, 18, 0.58);
+      display: grid;
+      gap: 10px;
+    }
+
+    .queue-head {
+      display: flex;
+      align-items: start;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .queue-head strong {
+      font-size: 1rem;
+      letter-spacing: -0.02em;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 11px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: #d7def0;
+      font-size: 0.76rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      font-weight: 800;
+    }
+
+    .badge::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 0 6px rgba(94, 234, 212, 0.12);
+    }
+
+    .queue-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .queue-meta {
+      padding: 14px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .queue-meta span {
+      display: block;
+      color: var(--muted);
+      font-size: 0.76rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 8px;
+    }
+
+    .queue-meta strong {
+      display: block;
+      word-break: break-word;
+      line-height: 1.45;
+    }
+
+    .queue-error {
+      color: #ffb4c0;
+    }
+
+    .footer {
+      margin: 88px 0 8px;
+      padding: 22px 20px;
+      border-radius: 24px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--muted);
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 14px;
+      align-items: center;
+    }
+
+    .footer strong {
+      color: var(--text);
+    }
+
+    .footer a {
+      color: var(--text);
+      text-decoration: none;
+      font-weight: 700;
+    }
+
+    @media (max-width: 1060px) {
+      .hero,
+      .grid-2 {
+        grid-template-columns: 1fr;
+      }
+
+      .meta-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .section-head {
+        flex-direction: column;
+        align-items: start;
+      }
+    }
+
+    @media (max-width: 760px) {
+      .shell {
+        width: min(var(--container), calc(100% - 18px));
+        padding-top: 12px;
+      }
+
+      .topbar {
+        padding: 14px;
+        border-radius: 18px;
+        position: relative;
+        top: auto;
+      }
+
+      .nav {
+        justify-content: flex-start;
+      }
+
+      .hero {
+        padding-top: 42px;
+      }
+
+      h1 {
+        max-width: 9.6ch;
+      }
+
+      .meta-grid,
+      .health-row,
+      .fields,
+      .queue-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .footer {
+        align-items: start;
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <a class="brand" href="/landing" aria-label="Landing page">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span class="brand-copy">
+          <strong>YouTube Automation Agent</strong>
+          <span>YouTube OAuth and publish queue</span>
+        </span>
+      </a>
+
+      <nav class="nav" aria-label="Primary">
+        <a href="/">Control room</a>
+        <a href="/landing">Landing page</a>
+        <a href="/api/youtube/status">API status</a>
+        <a class="cta" href="#queue">Queue</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div>
+          <div class="eyebrow">Connect your channel and publish from the VPS</div>
+          <h1>YouTube OAuth, uploads, and scheduling in one place.</h1>
+          <p class="lead">
+            Use the Google OAuth flow to connect your channel, drop rendered videos into the <code>uploads/</code> folder on the VPS, and queue uploads with optional publish dates so YouTube handles the release automatically.
+          </p>
+          <div class="cta-row">
+            <button class="btn primary" id="connectButton" type="button">Connect channel</button>
+            <button class="btn secondary" id="refreshButton" type="button">Refresh status</button>
+          </div>
+
+          <div class="meta-grid">
+            <div class="stat">
+              <strong id="statusConfigured">Loading...</strong>
+              <span>OAuth config</span>
+            </div>
+            <div class="stat">
+              <strong id="statusConnected">Loading...</strong>
+              <span>Channel link</span>
+            </div>
+            <div class="stat">
+              <strong id="statusQueue">Loading...</strong>
+              <span>Queued jobs</span>
+            </div>
+            <div class="stat">
+              <strong id="statusPrivacy">Loading...</strong>
+              <span>Default privacy</span>
+            </div>
+          </div>
+        </div>
+
+        <aside class="panel">
+          <div class="panel-head">
+            <div>
+              <strong>Connection details</strong><br />
+              <span>What the backend expects from Google</span>
+            </div>
+            <span class="eyebrow" style="padding: 8px 11px; font-size: 0.72rem; letter-spacing: 0.12em;">Live</span>
+          </div>
+          <div class="health-row">
+            <div class="health-box">
+              <span>Redirect URI</span>
+              <strong id="statusRedirect">Detecting...</strong>
+            </div>
+            <div class="health-box">
+              <span>Upload folder</span>
+              <strong id="statusUploadDir">Detecting...</strong>
+            </div>
+            <div class="health-box">
+              <span>Token source</span>
+              <strong id="statusSource">Detecting...</strong>
+            </div>
+            <div class="health-box">
+              <span>Processing</span>
+              <strong id="statusProcessing">Detecting...</strong>
+            </div>
+          </div>
+          <p class="note">
+            The app requests the <code>youtube.upload</code> scope and stores the token on the server only. Scheduled uploads must use <code>privacyStatus=private</code> with a <code>publishAt</code> time.
+          </p>
+          <div class="chip-row">
+            <span class="chip">OAuth 2.0</span>
+            <span class="chip">YouTube Data API</span>
+            <span class="chip">Hostinger VPS</span>
+            <span class="chip">PM2</span>
+          </div>
+        </aside>
+      </section>
+
+      <section class="section" id="publish">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">Publish queue</p>
+            <h2>Queue a video upload or schedule it for later.</h2>
+            <p class="copy">
+              Put the rendered video in <code>uploads/</code>, fill out the title and metadata, and the server will upload it with your YouTube OAuth token. If you choose a future publish time, the upload is sent to YouTube as a private scheduled video.
+            </p>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <article class="card">
+            <div class="panel-head">
+              <div>
+                <strong>Queue a publish</strong><br />
+                <span>The server will process the job in the background</span>
+              </div>
+              <span class="badge">Uploads only</span>
+            </div>
+
+            <form class="form" id="publishForm">
+              <div class="fields">
+                <div class="field">
+                  <label for="videoPath">Video path</label>
+                  <input id="videoPath" name="videoPath" type="text" placeholder="uploads/episode-01.mp4" required />
+                  <small>Use a file inside the <code>uploads/</code> folder on the VPS.</small>
+                </div>
+
+                <div class="field">
+                  <label for="thumbnailPath">Thumbnail path</label>
+                  <input id="thumbnailPath" name="thumbnailPath" type="text" placeholder="uploads/episode-01-thumb.png" />
+                  <small>Optional JPG or PNG thumbnail from the same folder.</small>
+                </div>
+
+                <div class="field">
+                  <label for="title">Title</label>
+                  <input id="title" name="title" type="text" placeholder="Top 10 AI tools for creators" required />
+                </div>
+
+                <div class="field">
+                  <label for="categoryId">Category ID</label>
+                  <input id="categoryId" name="categoryId" type="text" value="22" />
+                </div>
+
+                <div class="field">
+                  <label for="privacyStatus">Privacy status</label>
+                  <select id="privacyStatus" name="privacyStatus">
+                    <option value="private" selected>private</option>
+                    <option value="public">public</option>
+                    <option value="unlisted">unlisted</option>
+                  </select>
+                </div>
+
+                <div class="field">
+                  <label for="publishAt">Publish at</label>
+                  <input id="publishAt" name="publishAt" type="datetime-local" />
+                  <small>Leave blank to publish immediately.</small>
+                </div>
+
+                <div class="field" style="grid-column: 1 / -1;">
+                  <label for="tags">Tags</label>
+                  <input id="tags" name="tags" type="text" placeholder="ai, youtube, automation, creator tools" />
+                </div>
+
+                <div class="field" style="grid-column: 1 / -1;">
+                  <label for="description">Description</label>
+                  <textarea id="description" name="description" placeholder="Paste your video description or use the generated draft here."></textarea>
+                </div>
+              </div>
+
+              <div class="form-footer">
+                <div class="helper">
+                  Connect the channel first, then queue uploads from the VPS. For scheduled posts, keep the privacy set to private so YouTube can release it at the chosen time.
+                </div>
+                <button class="submit" type="submit">Queue publish</button>
+              </div>
+            </form>
+          </article>
+
+          <article class="card">
+            <div class="panel-head">
+              <div>
+                <strong>Response console</strong><br />
+                <span>Queued jobs and API responses appear here</span>
+              </div>
+              <span class="badge">JSON output</span>
+            </div>
+            <pre class="console" id="consoleOutput">Ready. Connect your channel and queue a video to see the response here.</pre>
+          </article>
+        </div>
+      </section>
+
+      <section class="section" id="queue">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">Queue status</p>
+            <h2>Watch the publish queue move from pending to published.</h2>
+            <p class="copy">
+              The queue is persisted on the VPS, so it survives restarts. If a token is missing, jobs stay queued until you connect the channel.
+            </p>
+          </div>
+        </div>
+
+        <article class="card">
+          <div class="panel-head">
+            <div>
+              <strong>Jobs</strong><br />
+              <span id="queueSummary">Loading queue...</span>
+            </div>
+            <button class="mini-btn secondary" id="reloadQueueButton" type="button">Reload queue</button>
+          </div>
+          <div class="queue-list" id="queueList"></div>
+        </article>
+      </section>
+
+      <section class="section" id="notes">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">Setup notes</p>
+            <h2>What you need before the first upload.</h2>
+            <p class="copy">
+              The Google OAuth redirect must match the URL in your Cloud Console exactly, and the API project needs YouTube Data API access enabled. If your project is still unverified, uploads can remain private until the audit is complete.
+            </p>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <article class="card">
+            <h3>Google Cloud</h3>
+            <p>
+              Create a web OAuth client, set the redirect URI to <code>/auth/youtube/callback</code>, and then open this page to connect your channel.
+            </p>
+          </article>
+
+          <article class="card">
+            <h3>Publishing flow</h3>
+            <p>
+              Generate the content pack in the control room, render the video, drop the MP4 into <code>uploads/</code>, and queue it from this page when you are ready.
+            </p>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div>
+        <strong>YouTube publisher</strong><br />
+        <span>The control room and the public landing page stay in the repo, while this page handles channel access and uploads.</span>
+      </div>
+      <div>
+        <a href="/">Open control room</a>
+      </div>
+    </footer>
+  </div>
+
+  <script>
+    const consoleOutput = document.getElementById('consoleOutput');
+    const publishForm = document.getElementById('publishForm');
+    const connectButton = document.getElementById('connectButton');
+    const refreshButton = document.getElementById('refreshButton');
+    const reloadQueueButton = document.getElementById('reloadQueueButton');
+    const queueList = document.getElementById('queueList');
+    const queueSummary = document.getElementById('queueSummary');
+
+    const statusConfigured = document.getElementById('statusConfigured');
+    const statusConnected = document.getElementById('statusConnected');
+    const statusQueue = document.getElementById('statusQueue');
+    const statusPrivacy = document.getElementById('statusPrivacy');
+    const statusRedirect = document.getElementById('statusRedirect');
+    const statusUploadDir = document.getElementById('statusUploadDir');
+    const statusSource = document.getElementById('statusSource');
+    const statusProcessing = document.getElementById('statusProcessing');
+
+    function prettyPrint(value) {
+      return JSON.stringify(value, null, 2);
+    }
+
+    function setConsole(text, isError) {
+      consoleOutput.textContent = text;
+      consoleOutput.classList.toggle('queue-error', Boolean(isError));
+    }
+
+    function toLocalDateTimeValue(isoString) {
+      if (!isoString) {
+        return '';
+      }
+
+      const date = new Date(isoString);
+      if (Number.isNaN(date.getTime())) {
+        return '';
+      }
+
+      const offset = date.getTimezoneOffset() * 60000;
+      const local = new Date(date.getTime() - offset);
+      return local.toISOString().slice(0, 16);
+    }
+
+    function formatLabel(value) {
+      return value ? String(value) : 'None';
+    }
+
+    function renderQueue(jobs) {
+      queueList.innerHTML = '';
+      queueSummary.textContent = jobs.length ? `${jobs.length} job${jobs.length === 1 ? '' : 's'} in the queue` : 'No queued jobs yet.';
+
+      if (!jobs.length) {
+        const empty = document.createElement('div');
+        empty.className = 'queue-item';
+        empty.innerHTML = '<strong>No jobs yet</strong><p class="note">Queue a video upload to see it appear here.</p>';
+        queueList.appendChild(empty);
+        return;
+      }
+
+      for (const job of jobs) {
+        const item = document.createElement('article');
+        item.className = 'queue-item';
+
+        const head = document.createElement('div');
+        head.className = 'queue-head';
+
+        const titleWrap = document.createElement('div');
+        const title = document.createElement('strong');
+        title.textContent = job.title || 'Untitled video';
+        titleWrap.appendChild(title);
+
+        const status = document.createElement('span');
+        status.className = 'badge';
+        status.textContent = job.status || 'queued';
+        head.appendChild(titleWrap);
+        head.appendChild(status);
+
+        const metaGrid = document.createElement('div');
+        metaGrid.className = 'queue-grid';
+
+        const fields = [
+          ['Video', job.videoPath],
+          ['Thumbnail', job.thumbnailPath],
+          ['Publish at', job.publishAt],
+          ['Privacy', job.privacyStatus],
+          ['Video ID', job.videoId],
+          ['YouTube URL', job.youtubeUrl],
+        ];
+
+        for (const [label, value] of fields) {
+          const meta = document.createElement('div');
+          meta.className = 'queue-meta';
+          const span = document.createElement('span');
+          span.textContent = label;
+          const strong = document.createElement('strong');
+          if (label === 'YouTube URL' && value) {
+            const link = document.createElement('a');
+            link.href = value;
+            link.target = '_blank';
+            link.rel = 'noreferrer';
+            link.textContent = value;
+            strong.appendChild(link);
+          } else {
+            strong.textContent = formatLabel(value);
+          }
+          meta.appendChild(span);
+          meta.appendChild(strong);
+          metaGrid.appendChild(meta);
+        }
+
+        item.appendChild(head);
+        item.appendChild(metaGrid);
+
+        if (job.lastError) {
+          const error = document.createElement('div');
+          error.className = 'note queue-error';
+          error.textContent = job.lastError;
+          item.appendChild(error);
+        }
+
+        queueList.appendChild(item);
+      }
+    }
+
+    async function loadStatus() {
+      try {
+        const response = await fetch('/api/youtube/status');
+        const data = await response.json();
+
+        if (!response.ok || !data.ok) {
+          throw new Error(data.error || 'Unable to load YouTube status.');
+        }
+
+        statusConfigured.textContent = data.configured ? 'Configured' : 'Missing';
+        statusConnected.textContent = data.connected ? `Connected (${data.tokenSource || 'file'})` : 'Not connected';
+        statusQueue.textContent = String(data.queueCount ?? 0);
+        statusPrivacy.textContent = data.defaultPrivacyStatus || 'private';
+        statusRedirect.textContent = data.redirectUri || 'Unknown';
+        statusUploadDir.textContent = data.uploadDirectory || 'uploads';
+        statusSource.textContent = data.tokenSource || 'none';
+        statusProcessing.textContent = `${data.publishingCount || 0} active`;
+
+        connectButton.disabled = !data.configured;
+        connectButton.textContent = data.connected ? 'Reconnect channel' : 'Connect channel';
+
+        if (!data.connected) {
+          setConsole('YouTube is not connected yet. Click "Connect channel" and finish the Google OAuth flow.', false);
+        }
+      } catch (error) {
+        statusConfigured.textContent = 'Offline';
+        statusConnected.textContent = 'Offline';
+        statusQueue.textContent = '0';
+        statusPrivacy.textContent = 'Unknown';
+        statusRedirect.textContent = 'Unknown';
+        statusUploadDir.textContent = 'Unknown';
+        statusSource.textContent = 'Unknown';
+        statusProcessing.textContent = '0 active';
+        connectButton.disabled = false;
+        setConsole(`Unable to reach /api/youtube/status: ${error.message}`, true);
+      }
+    }
+
+    async function loadQueue() {
+      try {
+        const response = await fetch('/api/youtube/queue');
+        const data = await response.json();
+
+        if (!response.ok || !data.ok) {
+          throw new Error(data.error || 'Unable to load the queue.');
+        }
+
+        renderQueue(data.jobs || []);
+      } catch (error) {
+        renderQueue([]);
+        const message = `Unable to load queue: ${error.message}`;
+        queueSummary.textContent = message;
+        setConsole(message, true);
+      }
+    }
+
+    async function submitPublish(event) {
+      event.preventDefault();
+      setConsole('Queuing publish request...', false);
+
+      const formData = new FormData(publishForm);
+      const payload = Object.fromEntries(formData.entries());
+      payload.publishAt = payload.publishAt ? new Date(payload.publishAt).toISOString() : '';
+
+      try {
+        const response = await fetch('/api/youtube/publish', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok || !data.ok) {
+          throw new Error(data.error || 'The server returned an error.');
+        }
+
+        setConsole(prettyPrint(data), false);
+        publishForm.reset();
+        document.getElementById('privacyStatus').value = 'private';
+        document.getElementById('categoryId').value = '22';
+        await loadQueue();
+        await loadStatus();
+      } catch (error) {
+        setConsole(`Error: ${error.message}`, true);
+      }
+    }
+
+    connectButton.addEventListener('click', function () {
+      window.location.href = '/auth/youtube?returnTo=/youtube';
+    });
+
+    refreshButton.addEventListener('click', function () {
+      void loadStatus();
+      void loadQueue();
+    });
+
+    reloadQueueButton.addEventListener('click', function () {
+      void loadQueue();
+    });
+
+    publishForm.addEventListener('submit', submitPublish);
+
+    loadStatus();
+    loadQueue();
+    setInterval(function () {
+      void loadStatus();
+      void loadQueue();
+    }, 20000);
+  </script>
+</body>
+</html>
