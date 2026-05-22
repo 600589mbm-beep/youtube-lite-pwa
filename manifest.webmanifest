@@ -1,7 +1,7 @@
 {
   "name": "YouTube Automation Agent",
   "short_name": "YT Agent",
-  "description": "A GitHub Pages landing site for an AI-powered YouTube automation system.",
+  "description": "An OpenRouter-powered YouTube automation control room with a public landing page.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
