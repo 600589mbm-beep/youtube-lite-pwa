@@ -1,8 +1,10 @@
-const CACHE_NAME = "youtube-automation-agent-v1";
+const CACHE_NAME = "youtube-automation-agent-v2";
 
 const FILES_TO_CACHE = [
   "./",
   "./app.html",
+  "./youtube",
+  "./youtube.html",
   "./landing",
   "./index.html",
   "./manifest.webmanifest",
