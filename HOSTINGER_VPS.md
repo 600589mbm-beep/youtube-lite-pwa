@@ -1,10 +1,10 @@
 # Hostinger VPS Setup
 
-This repository is now set up to run as a Node.js app on a Hostinger VPS.
+This repository is ready to run as a Node.js app on a Hostinger VPS.
 
 ## Recommended Hostinger path
 
-Hostinger's help center confirms Node.js support on VPS hosting and recommends the Ubuntu 22.04 Node.js + OpenLiteSpeed template for a fast setup. If you are using CloudPanel, Hostinger also documents a Node.js app flow that uses PM2 on the site user.
+Hostinger's help center confirms Node.js support on VPS hosting and documents a Node.js app flow for CloudPanel. If you are starting from a fresh VPS, choose a Node.js-capable setup or follow the CloudPanel app flow.
 
 Helpful docs:
 
@@ -22,7 +22,7 @@ Helpful docs:
 ## Deployment steps
 
 1. Provision a Hostinger VPS.
-2. If you are starting fresh, choose the Node.js-capable template or a VPS with Node.js support.
+2. If you are starting fresh, choose a Node.js-capable template or a VPS with Node.js support.
 3. Upload the repository to the server or pull it from GitHub.
 4. Enter the repository root on the VPS.
 5. Copy `.env.example` to `.env` and fill in your real values.
@@ -32,16 +32,16 @@ Helpful docs:
 npm install
 ```
 
-7. Install PM2 if it is not already installed:
+7. Install PM2 if it is not already available:
 
 ```bash
 npm install -g pm2
 ```
 
-8. Start the app using the PM2 ecosystem file:
+8. Start the app using the PM2 script:
 
 ```bash
-pm2 start ecosystem.config.cjs --env production
+npm run pm2:start
 pm2 save
 ```
 
