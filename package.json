@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "A VPS-ready YouTube automation control room powered by OpenRouter.",
+  "description": "A VPS-ready YouTube automation control room with OpenRouter generation and YouTube OAuth publishing.",
   "engines": {
     "node": ">=18"
   },
@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "dotenv": "^16.4.7",
-    "express": "^4.21.2"
+    "express": "^4.21.2",
+    "googleapis": "^159.0.0"
   }
 }
