@@ -25,6 +25,7 @@ The backend is a small Node.js app that serves the pages, checks health, and gen
 - `manifest.webmanifest` - PWA metadata for the landing page
 - `sw.js` - service worker for the static site shell
 - `icon.svg` - app icon
+- `HOSTINGER_VPS.md` - VPS setup guide with Hostinger-specific steps
 
 ## Environment variables
 
@@ -54,22 +55,34 @@ Then open:
 
 ## Hostinger VPS deployment
 
-Hostinger documents Node.js support on VPS and PM2-based Node app deployment. A typical VPS flow is:
+For the full step-by-step VPS setup, use [HOSTINGER_VPS.md](./HOSTINGER_VPS.md).
+
+Quick version:
 
 1. Create or open a Hostinger VPS with Node.js support.
-2. Upload the repository to the VPS or connect it through Git.
+2. Upload the repository to the server or pull it from GitHub.
 3. Install dependencies with `npm install`.
 4. Set the environment variables from `.env.example`.
-5. Start the app with PM2.
-
-Example:
+5. Install PM2 if it is not already available:
 
 ```bash
-pm2 start server.js --name youtube-automation-agent
+npm install -g pm2
+```
+
+6. Start the app:
+
+```bash
+npm run pm2:start
 pm2 save
 ```
 
-If you are using Hostinger CloudPanel, the app port should match the `PORT` value in `.env`.
+7. Check the app:
+
+- Control room: `/`
+- Landing page: `/landing`
+- Health check: `/api/health`
+
+If you are using Hostinger CloudPanel, make sure the app port matches the `PORT` value in `.env`.
 
 ## OpenRouter notes
 
