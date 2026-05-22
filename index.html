@@ -3,237 +3,423 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="theme-color" content="#0f0f0f" />
-
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-title" content="YouTube Lite" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-
-  <link rel="manifest" href="manifest.webmanifest" />
-  <link rel="apple-touch-icon" href="icon.svg" />
-
-  <title>YouTube Lite</title>
-
+  <meta name="theme-color" content="#07111f" />
+  <meta name="description" content="YouTube Automation Agent is a GitHub Pages landing page for an AI-powered YouTube channel management system." />
+  <title>YouTube Automation Agent</title>
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="./icon.svg" />
   <style>
     :root {
-      --bg: #0f0f0f;
-      --card: #1c1c1c;
-      --text: #ffffff;
-      --muted: #b8b8b8;
-      --red: #ff0033;
-      --border: #2b2b2b;
+      color-scheme: dark;
+      --bg: #07111f;
+      --bg2: #050914;
+      --panel: rgba(12, 20, 36, 0.84);
+      --line: rgba(255,255,255,0.08);
+      --text: #f6f8ff;
+      --muted: #a7b2c8;
+      --accent: #ff5d73;
+      --accent2: #38d7c4;
+      --accent3: #ffd166;
+      --shadow: 0 26px 80px rgba(0,0,0,0.38);
+      --radius: 24px;
+      --container: 1160px;
     }
 
-    * {
-      box-sizing: border-box;
-    }
-
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
     body {
       margin: 0;
       min-height: 100vh;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-      background: radial-gradient(circle at top, #2a0008 0%, var(--bg) 42%);
+      background:
+        radial-gradient(circle at 18% 16%, rgba(56,215,196,0.16), transparent 22%),
+        radial-gradient(circle at 84% 12%, rgba(255,93,115,0.18), transparent 22%),
+        linear-gradient(180deg, #09111e 0%, var(--bg) 40%, var(--bg2) 100%);
       color: var(--text);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 22px;
+      font-family: "Avenir Next", "Segoe UI Variable Display", "SF Pro Display", "Helvetica Neue", ui-sans-serif, system-ui, sans-serif;
+      overflow-x: hidden;
     }
-
-    .app {
-      width: 100%;
-      max-width: 430px;
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background-image: linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+      background-size: 42px 42px;
+      mask-image: linear-gradient(180deg, rgba(0,0,0,0.5), transparent 88%);
     }
-
-    .header {
-      text-align: center;
-      margin-bottom: 24px;
+    a { color: inherit; }
+    .shell { width: min(var(--container), calc(100% - 32px)); margin: 0 auto; padding: 20px 0 42px; }
+    .topbar {
+      position: sticky; top: 16px; z-index: 20;
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+      padding: 16px 18px; border: 1px solid var(--line); border-radius: 22px;
+      background: rgba(8,14,26,0.72); box-shadow: 0 18px 50px rgba(0,0,0,0.22); backdrop-filter: blur(18px);
     }
-
-    .logo {
-      width: 78px;
-      height: 78px;
-      border-radius: 24px;
-      background: var(--red);
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      box-shadow: 0 18px 50px rgba(255, 0, 51, 0.35);
-      margin-bottom: 14px;
+    .brand { display: inline-flex; align-items: center; gap: 12px; text-decoration: none; }
+    .brand-mark {
+      width: 42px; height: 42px; border-radius: 14px;
+      background: linear-gradient(135deg, var(--accent) 0%, #ff8b61 46%, var(--accent3) 100%);
+      position: relative; box-shadow: 0 18px 36px rgba(255,93,115,0.28); flex: 0 0 auto;
     }
-
-    .play {
-      width: 0;
-      height: 0;
-      border-top: 16px solid transparent;
-      border-bottom: 16px solid transparent;
-      border-left: 25px solid white;
-      margin-left: 6px;
+    .brand-mark::after {
+      content: ""; position: absolute; inset: 12px 12px 12px 15px;
+      clip-path: polygon(0 0, 100% 50%, 0 100%); background: rgba(255,255,255,0.95);
     }
+    .brand-copy { display: grid; gap: 2px; }
+    .brand-copy strong { font-size: 0.98rem; letter-spacing: -0.02em; }
+    .brand-copy span { color: var(--muted); font-size: 0.82rem; }
+    .nav { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 18px; margin-left: auto; }
+    .nav a { color: var(--muted); text-decoration: none; font-size: 0.93rem; font-weight: 600; }
+    .nav a:hover, .nav a:focus-visible { color: var(--text); }
+    .nav .cta { padding: 10px 14px; border-radius: 999px; color: var(--text); background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); }
 
+    .hero {
+      display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
+      gap: 32px; align-items: center; padding: 58px 0 28px;
+    }
+    .badge {
+      display: inline-flex; align-items: center; gap: 10px;
+      padding: 9px 14px; border: 1px solid rgba(255,255,255,0.1); border-radius: 999px;
+      background: rgba(255,255,255,0.04); color: #d9e3f6; font-size: 0.84rem; letter-spacing: 0.09em; text-transform: uppercase; font-weight: 700;
+    }
+    .badge::before {
+      content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--accent2); box-shadow: 0 0 0 6px rgba(56,215,196,0.12);
+    }
     h1 {
-      margin: 0;
-      font-size: 34px;
-      letter-spacing: -0.04em;
+      margin: 18px 0 18px; max-width: 11ch; font-size: clamp(3.1rem, 8vw, 6.2rem); line-height: 0.92; letter-spacing: -0.07em;
     }
-
-    p {
-      color: var(--muted);
-      line-height: 1.5;
-      margin: 8px 0 0;
-      font-size: 15px;
+    .lead { margin: 0; max-width: 64ch; color: var(--muted); font-size: clamp(1.04rem, 1.65vw, 1.18rem); line-height: 1.7; }
+    .hero-note { margin-top: 18px; color: #d7def0; font-size: 0.95rem; line-height: 1.6; }
+    .cta-row { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; min-height: 50px; padding: 0 18px;
+      border-radius: 999px; text-decoration: none; font-weight: 700; font-size: 0.98rem; border: 1px solid transparent;
+      transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
     }
+    .btn:hover, .btn:focus-visible { transform: translateY(-1px); }
+    .btn.primary { color: #08101d; background: linear-gradient(135deg, var(--accent) 0%, #ff7e5e 100%); box-shadow: 0 14px 34px rgba(255,93,115,0.28); }
+    .btn.secondary { color: var(--text); background: rgba(255,255,255,0.04); border-color: var(--line); }
+    .stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 28px; }
+    .stat { padding: 16px 16px 18px; border: 1px solid var(--line); border-radius: 20px; background: rgba(255,255,255,0.04); }
+    .stat strong { display: block; font-size: 1.35rem; letter-spacing: -0.05em; }
+    .stat span { display: block; margin-top: 4px; color: var(--muted); font-size: 0.92rem; }
 
+    .visual {
+      position: relative; padding: 22px; border-radius: 32px;
+      background: linear-gradient(180deg, rgba(13,22,40,0.96) 0%, rgba(8,13,24,0.96) 100%);
+      border: 1px solid var(--line); box-shadow: var(--shadow); overflow: hidden;
+    }
+    .visual::before {
+      content: ""; position: absolute; inset: auto -15% -35% auto; width: 260px; height: 260px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(56,215,196,0.25), transparent 72%); filter: blur(10px); pointer-events: none;
+    }
+    .queue-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 4px 0 14px; }
+    .queue-head strong { font-size: 1.06rem; letter-spacing: -0.02em; }
+    .queue-head span { color: var(--muted); font-size: 0.92rem; }
+    .panel { padding: 16px; border-radius: 22px; border: 1px solid var(--line); background: rgba(255,255,255,0.04); }
+    .metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 12px; }
+    .metric { padding: 14px; border-radius: 18px; background: rgba(6,11,18,0.5); border: 1px solid rgba(255,255,255,0.06); }
+    .metric span { display: block; color: var(--muted); font-size: 0.76rem; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 10px; }
+    .metric strong { display: block; font-size: 1.18rem; letter-spacing: -0.05em; }
+    .pipeline { display: grid; gap: 12px; }
+    .pipeline-item { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 12px; align-items: start; }
+    .dot { width: 12px; height: 12px; margin-top: 6px; border-radius: 50%; background: var(--accent2); box-shadow: 0 0 0 6px rgba(56,215,196,0.12); }
+    .pipeline-item:nth-child(2) .dot { background: var(--accent); box-shadow: 0 0 0 6px rgba(255,93,115,0.12); }
+    .pipeline-item:nth-child(3) .dot { background: var(--accent3); box-shadow: 0 0 0 6px rgba(255,209,102,0.12); }
+    .pipeline-item:nth-child(4) .dot { background: #6da8ff; box-shadow: 0 0 0 6px rgba(109,168,255,0.12); }
+    .pipeline-item h3 { margin: 0 0 4px; font-size: 0.98rem; letter-spacing: -0.02em; }
+    .pipeline-item p { margin: 0; color: var(--muted); line-height: 1.5; font-size: 0.92rem; }
+    .strip { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 14px; padding: 14px 16px; border-radius: 22px; border: 1px solid var(--line); background: rgba(255,255,255,0.03); color: #dce4f6; }
+    .strip span { padding: 10px 12px; border-radius: 999px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.07); font-size: 0.92rem; white-space: nowrap; }
+    .strip b { color: var(--text); }
+    .strip .arrow { padding: 0; background: transparent; border: 0; color: var(--accent3); font-size: 1.15rem; }
+
+    .section { margin-top: 92px; }
+    .head { display: flex; justify-content: space-between; gap: 16px; align-items: end; margin-bottom: 24px; }
+    .kicker { margin: 0 0 10px; color: var(--accent3); font-size: 0.8rem; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 800; }
+    .section h2 { margin: 0; font-size: clamp(2rem, 4vw, 3rem); line-height: 1.02; letter-spacing: -0.05em; }
+    .section-copy { margin: 12px 0 0; max-width: 70ch; color: var(--muted); line-height: 1.7; font-size: 1.02rem; }
+    .grid-3, .grid-2 { display: grid; gap: 16px; }
+    .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .card {
-      background: rgba(28, 28, 28, 0.92);
-      border: 1px solid var(--border);
-      border-radius: 28px;
-      padding: 18px;
-      box-shadow: 0 22px 60px rgba(0, 0, 0, 0.35);
-      backdrop-filter: blur(18px);
+      position: relative; padding: 20px; border-radius: var(--radius); border: 1px solid var(--line);
+      background: var(--panel); box-shadow: 0 18px 50px rgba(0,0,0,0.24); overflow: hidden;
     }
-
-    .search {
-      display: flex;
-      gap: 10px;
-      margin-bottom: 14px;
+    .card::before { content: ""; position: absolute; inset: 0 auto auto 0; width: 100%; height: 2px; background: linear-gradient(90deg, var(--accent) 0%, var(--accent2) 50%, var(--accent3) 100%); opacity: 0.5; }
+    .card h3 { margin: 0 0 8px; font-size: 1.08rem; line-height: 1.2; letter-spacing: -0.03em; }
+    .card p { margin: 0; color: var(--muted); line-height: 1.65; }
+    .card ul { margin: 14px 0 0; padding: 0; list-style: none; display: grid; gap: 10px; color: #d7def0; line-height: 1.5; }
+    .card ul li { position: relative; padding-left: 18px; }
+    .card ul li::before { content: ""; position: absolute; left: 0; top: 0.5em; width: 7px; height: 7px; border-radius: 50%; background: var(--accent2); box-shadow: 0 0 0 5px rgba(56,215,196,0.08); }
+    .provider.recommended { border-color: rgba(255,93,115,0.25); background: linear-gradient(180deg, rgba(255,93,115,0.11), transparent 28%), var(--panel); }
+    .provider.gemini { border-color: rgba(56,215,196,0.18); }
+    .provider.custom { border-color: rgba(109,168,255,0.18); }
+    .pill { display: inline-flex; align-items: center; gap: 8px; margin-bottom: 14px; padding: 7px 11px; border-radius: 999px; background: rgba(255,255,255,0.04); color: #d9e3f6; border: 1px solid rgba(255,255,255,0.08); font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700; }
+    .flow { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 20px; padding: 15px 16px; border-radius: 22px; border: 1px solid var(--line); background: rgba(255,255,255,0.03); color: #dce4f6; }
+    .flow span { padding: 10px 12px; border-radius: 999px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.07); font-size: 0.92rem; white-space: nowrap; }
+    .flow .arrow { padding: 0; background: transparent; border: 0; color: var(--accent3); font-size: 1.15rem; }
+    .flow b { color: var(--text); }
+    .steps { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; counter-reset: step; }
+    .steps li {
+      counter-increment: step; display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 14px; align-items: start;
+      padding: 16px; border: 1px solid var(--line); border-radius: 20px; background: rgba(255,255,255,0.03);
     }
-
-    input {
-      flex: 1;
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      background: #111;
-      color: var(--text);
-      font-size: 16px;
-      padding: 14px 15px;
-      outline: none;
+    .steps li::before {
+      content: counter(step); width: 48px; height: 48px; border-radius: 16px; display: inline-flex; align-items: center; justify-content: center;
+      background: linear-gradient(135deg, rgba(255,93,115,0.18), rgba(56,215,196,0.18)); border: 1px solid rgba(255,255,255,0.08); color: var(--text); font-weight: 800; font-size: 1.05rem;
     }
-
-    input:focus {
-      border-color: var(--red);
-    }
-
-    button,
-    .link-button {
-      width: 100%;
-      border: 0;
-      border-radius: 16px;
-      background: #ffffff;
-      color: #000000;
-      font-weight: 800;
-      font-size: 16px;
-      padding: 15px 16px;
-      cursor: pointer;
-      text-decoration: none;
-      display: block;
-      text-align: center;
-      margin-top: 10px;
-    }
-
-    .primary {
-      background: var(--red);
-      color: #ffffff;
-    }
-
-    .grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-      margin-top: 10px;
-    }
-
-    .grid .link-button {
-      margin-top: 0;
-      background: #252525;
-      color: #ffffff;
-      border: 1px solid var(--border);
-    }
-
-    .note {
-      margin-top: 16px;
-      padding: 13px;
-      border-radius: 16px;
-      background: #121212;
-      border: 1px solid var(--border);
-      color: var(--muted);
-      font-size: 13px;
-    }
-
+    .steps h3 { margin: 0 0 6px; font-size: 1.03rem; }
+    .steps p { margin: 0; color: var(--muted); line-height: 1.6; }
+    .table-wrap { overflow-x: auto; border-radius: var(--radius); border: 1px solid var(--line); background: var(--panel); box-shadow: 0 18px 50px rgba(0,0,0,0.24); }
+    table { width: 100%; border-collapse: collapse; min-width: 700px; }
+    thead th { text-align: left; padding: 16px 18px; background: rgba(255,255,255,0.04); color: #dce4f6; font-size: 0.8rem; letter-spacing: 0.12em; text-transform: uppercase; }
+    tbody td { padding: 16px 18px; border-top: 1px solid var(--line); color: var(--muted); vertical-align: top; line-height: 1.55; }
+    tbody td strong { color: var(--text); display: block; margin-bottom: 4px; }
+    pre { margin: 0; padding: 18px; border-radius: 24px; border: 1px solid var(--line); background: #050a14; color: #f5f8ff; overflow: auto; }
+    code { font-family: "Cascadia Code", "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; font-size: 0.93rem; line-height: 1.6; }
+    details { border-radius: 18px; border: 1px solid var(--line); background: rgba(255,255,255,0.03); padding: 0 18px; box-shadow: 0 18px 50px rgba(0,0,0,0.24); }
+    details + details { margin-top: 12px; }
+    summary { cursor: pointer; list-style: none; padding: 18px 0; font-weight: 700; letter-spacing: -0.02em; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+    summary::-webkit-details-marker { display: none; }
+    summary::after { content: "+"; color: var(--accent3); font-size: 1.2rem; line-height: 1; }
+    details[open] summary::after { content: "–"; }
+    details p { margin: 0 0 18px; color: var(--muted); line-height: 1.65; }
     .footer {
-      margin-top: 16px;
-      text-align: center;
-      font-size: 12px;
-      color: #858585;
+      margin: 88px 0 12px; padding: 24px 20px; border-radius: 26px; border: 1px solid var(--line);
+      background: rgba(255,255,255,0.035); color: var(--muted); display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px;
+    }
+    .footer strong { color: var(--text); }
+    .footer a { color: var(--text); text-decoration: none; font-weight: 700; }
+
+    @media (max-width: 1060px) {
+      .hero, .grid-2 { grid-template-columns: 1fr; }
+      .head { flex-direction: column; align-items: start; }
+      .grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 760px) {
+      .shell { width: min(var(--container), calc(100% - 20px)); padding-top: 12px; }
+      .topbar { padding: 14px; border-radius: 18px; position: relative; top: auto; }
+      .nav { justify-content: flex-start; margin-left: 0; }
+      .hero { padding-top: 42px; }
+      h1 { max-width: 9.5ch; }
+      .stats, .metrics, .grid-3 { grid-template-columns: 1fr; }
+      .queue-head, .footer { flex-direction: column; align-items: start; }
+      .strip, .flow { align-items: flex-start; }
     }
   </style>
 </head>
-
 <body>
-  <main class="app">
-    <section class="header">
-      <div class="logo" aria-hidden="true">
-        <div class="play"></div>
+  <div class="shell">
+    <header class="topbar">
+      <a class="brand" href="#top" aria-label="YouTube Automation Agent home">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span class="brand-copy"><strong>YouTube Automation Agent</strong><span>GitHub Pages landing site</span></span>
+      </a>
+      <nav class="nav" aria-label="Primary">
+        <a href="#overview">Overview</a>
+        <a href="#providers">Providers</a>
+        <a href="#agents">Agents</a>
+        <a href="#setup">Setup</a>
+        <a href="#faq">FAQ</a>
+        <a class="cta" href="https://github.com/600589mbm-beep/youtube-lite-pwa" target="_blank" rel="noreferrer">GitHub Repo</a>
+      </nav>
+    </header>
+
+    <main id="top">
+      <section class="hero">
+        <div>
+          <div class="badge">24/7 AI channel management</div>
+          <h1>YouTube content, automated end to end.</h1>
+          <p class="lead">YouTube Automation Agent is a fully automated channel management system that researches trending topics, writes scripts, generates thumbnails, optimizes SEO, schedules uploads, and learns from performance data every day.</p>
+          <p class="hero-note">No Claude required. You can run OpenAI, Gemini, Claude, Ollama, or any OpenAI-compatible API, then let the agents handle the rest.</p>
+          <div class="cta-row">
+            <a class="btn primary" href="#setup">See Quick Start</a>
+            <a class="btn secondary" href="#agents">Explore the Agents</a>
+          </div>
+          <div class="stats">
+            <div class="stat"><strong>24/7</strong><span>Always-on content pipeline</span></div>
+            <div class="stat"><strong>5+</strong><span>Specialized AI agents</span></div>
+            <div class="stat"><strong>$0-50</strong><span>Typical monthly operating range</span></div>
+          </div>
+        </div>
+
+        <aside class="visual">
+          <div class="queue-head">
+            <div><strong>Today's production queue</strong><br /><span>Daily automation loop in motion</span></div>
+            <span class="badge" style="padding:8px 11px; font-size:0.72rem; letter-spacing:0.12em;">Live pipeline</span>
+          </div>
+          <div class="panel">
+            <div class="metrics">
+              <div class="metric"><span>Trending</span><strong>12 topics</strong></div>
+              <div class="metric"><span>Scripts</span><strong>Ready</strong></div>
+              <div class="metric"><span>Uploads</span><strong>Scheduled</strong></div>
+            </div>
+            <div class="pipeline">
+              <div class="pipeline-item"><div class="dot"></div><div><h3>Content Strategy Agent</h3><p>Tracks trends and finds topics that fit your niche.</p></div></div>
+              <div class="pipeline-item"><div class="dot"></div><div><h3>Script Writer Agent</h3><p>Builds hooks, narrative flow, and calls to action.</p></div></div>
+              <div class="pipeline-item"><div class="dot"></div><div><h3>Thumbnail + SEO Agents</h3><p>Generates visuals, titles, metadata, and tags.</p></div></div>
+              <div class="pipeline-item"><div class="dot"></div><div><h3>Publishing + Analytics Agents</h3><p>Schedules, publishes, and improves the next run.</p></div></div>
+            </div>
+          </div>
+          <div class="strip">
+            <span><b>OpenAI</b> quality</span>
+            <span class="arrow">→</span>
+            <span><b>Gemini</b> budget mode</span>
+            <span class="arrow">→</span>
+            <span><b>Claude / Ollama</b> custom stack</span>
+          </div>
+        </aside>
+      </section>
+
+      <section class="section" id="overview">
+        <div class="head">
+          <div>
+            <p class="kicker">What this does</p>
+            <h2>A full pipeline for researching, creating, and publishing YouTube content.</h2>
+            <p class="section-copy">The system is designed to run continuously. It handles the repetitive work around content discovery, writing, visual generation, metadata, publishing, and analytics so you can focus on the channel direction instead of the manual grind.</p>
+          </div>
+        </div>
+        <div class="grid-3">
+          <article class="card"><h3>Trend research</h3><p>Automatically identifies promising ideas and builds a content calendar around them.</p><ul><li>Trend monitoring via API</li><li>Topic scoring by niche fit</li><li>Calendar planning without manual guessing</li></ul></article>
+          <article class="card"><h3>Script writing</h3><p>Creates stronger hooks, story flow, and clear calls to action for better watch time.</p><ul><li>Hooks and pacing</li><li>Storytelling structure</li><li>Call-to-action placement</li></ul></article>
+          <article class="card"><h3>Thumbnail creation</h3><p>Builds clickable thumbnail concepts and supports A/B testing across designs.</p><ul><li>Visual generation</li><li>CTR-focused design</li><li>Variant testing</li></ul></article>
+          <article class="card"><h3>SEO optimization</h3><p>Researches high-performing keywords and turns them into stronger metadata.</p><ul><li>Keyword discovery</li><li>Metadata optimization</li><li>Tag management</li></ul></article>
+          <article class="card"><h3>Publishing</h3><p>Queues uploads for the best time windows, then handles playlists and end screens.</p><ul><li>Automated uploads</li><li>Optimal scheduling</li><li>Playlist management</li></ul></article>
+          <article class="card"><h3>Analytics</h3><p>Feeds data back into the pipeline so the next run gets smarter than the last one.</p><ul><li>Performance tracking</li><li>Optimization loops</li><li>Weekly strategy review</li></ul></article>
+        </div>
+      </section>
+
+      <section class="section" id="providers">
+        <div class="head">
+          <div>
+            <p class="kicker">AI provider options</p>
+            <h2>No Claude required, but Claude still fits.</h2>
+            <p class="section-copy">Use the model family that fits your quality goals, budget, and preferred workflow without rebuilding the system.</p>
+          </div>
+        </div>
+        <div class="grid-3">
+          <article class="card provider recommended"><div class="pill">Recommended</div><h3>OpenAI</h3><p>Best for professional creators who want high-quality writing and image generation.</p><ul><li>GPT-style generation for scripts and planning</li><li>DALL-E 3 for thumbnail concepts</li><li>Whisper for speech processing</li><li>Approximate cost: $0.10-0.30 per video</li></ul></article>
+          <article class="card provider gemini"><div class="pill">Budget-friendly</div><h3>Google Gemini</h3><p>Great for beginners and hobby creators who want a low-cost or free starting point.</p><ul><li>Free tier with generous request limits</li><li>Supports multiple videos a day at low cost</li><li>Good option for experimentation</li><li>Approximate cost: free to very low</li></ul></article>
+          <article class="card provider custom"><div class="pill">Flexible</div><h3>Custom AI integration</h3><p>Plug in Claude, local models, or any OpenAI-compatible API when you want control.</p><ul><li>Anthropic Claude support</li><li>Local models via Ollama</li><li>Bring-your-own OpenAI-compatible endpoint</li><li>Easy path for power users</li></ul></article>
+        </div>
+      </section>
+
+      <section class="section" id="agents">
+        <div class="head">
+          <div>
+            <p class="kicker">Agent architecture</p>
+            <h2>Each agent owns one piece of the workflow.</h2>
+            <p class="section-copy">Strategy feeds writing, writing feeds thumbnails, thumbnails feed SEO, SEO feeds publishing, and publishing feeds analytics.</p>
+          </div>
+        </div>
+        <div class="flow">
+          <span><b>Content Strategy</b></span><span class="arrow">→</span><span><b>Script Writer</b></span><span class="arrow">→</span><span><b>Thumbnail Designer</b></span><span class="arrow">→</span><span><b>SEO Optimizer</b></span><span class="arrow">→</span><span><b>Publishing Agent</b></span><span class="arrow">→</span><span><b>Analytics &amp; Optimization</b></span>
+        </div>
+        <div class="grid-3">
+          <article class="card"><h3>Content Strategy Agent</h3><p>Analyzes YouTube trends, finds viral topic opportunities, and plans the calendar automatically.</p></article>
+          <article class="card"><h3>Script Writer Agent</h3><p>Writes engaging scripts with hooks, storytelling, and calls to action that support watch time.</p></article>
+          <article class="card"><h3>Thumbnail Designer Agent</h3><p>Generates clickable thumbnail ideas and can compare multiple design directions.</p></article>
+          <article class="card"><h3>SEO Optimizer Agent</h3><p>Finds keywords, improves titles and descriptions, and manages tags and metadata.</p></article>
+          <article class="card"><h3>Publishing Agent</h3><p>Uploads videos, schedules them for optimal times, and manages playlists and end screens.</p></article>
+          <article class="card"><h3>Analytics &amp; Optimization Agent</h3><p>Reads results, finds patterns, and improves the next cycle so the system keeps learning.</p></article>
+        </div>
+      </section>
+
+      <section class="section" id="cost">
+        <div class="head">
+          <div>
+            <p class="kicker">Cost and setup</p>
+            <h2>Keep the operating model predictable.</h2>
+            <p class="section-copy">The YouTube API stays free within quota, OpenAI can be used for higher-end runs, Gemini offers a low-cost path, and hosting can start as a local machine or scale to a small VPS.</p>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table aria-label="Cost breakdown">
+            <thead><tr><th>Component</th><th>Free Tier</th><th>Paid Usage</th></tr></thead>
+            <tbody>
+              <tr><td><strong>YouTube API</strong>Quota-limited but free to start</td><td>10,000 units/day</td><td>Same quota structure, with higher limits possible via approval</td></tr>
+              <tr><td><strong>OpenAI</strong>Higher quality generation path</td><td>No free tier</td><td>Roughly $0.20 per video, depending on usage</td></tr>
+              <tr><td><strong>Google Gemini</strong>Budget-friendly default</td><td>60 requests per minute</td><td>Very low token pricing for larger workloads</td></tr>
+              <tr><td><strong>Hosting</strong>Run locally or in the cloud</td><td>Local PC / Mac</td><td>$5-20 per month on a VPS</td></tr>
+              <tr><td><strong>Total monthly</strong>Varies by provider and scale</td><td>$0 to start</td><td>Typically $6-50 for a small production setup</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="grid-2" style="margin-top:16px;">
+          <article class="card"><div class="pill">Security and privacy</div><h3>Keep credentials local.</h3><ul><li>Store API keys in encrypted local configuration.</li><li>Only send content to the services you explicitly configure.</li><li>Use rate limiting and logging without sensitive data exposure.</li><li>Keep backups in a local database workflow when needed.</li></ul></article>
+          <article class="card"><div class="pill">Deployment options</div><h3>Pick the footprint that matches your workflow.</h3><ul><li>Local computer for free development and testing</li><li>Raspberry Pi for low-power home automation</li><li>DigitalOcean or Linode for a small VPS setup</li><li>Railway, Render, Vercel, or Netlify for smaller deployments</li></ul></article>
+        </div>
+      </section>
+
+      <section class="section" id="setup">
+        <div class="head">
+          <div>
+            <p class="kicker">Quick start</p>
+            <h2>Get from zero to first run in about ten minutes.</h2>
+            <p class="section-copy">The setup flow starts with the YouTube API, then you choose an AI provider, set your channel preferences, and start the automation loop.</p>
+          </div>
+        </div>
+        <div class="grid-2">
+          <ol class="steps">
+            <li><div><h3>Install the basics</h3><p>Use Node.js 18+, a Google account, and one AI provider account to get started.</p></div></li>
+            <li><div><h3>Clone the project</h3><p>Pull the automation repo, install dependencies, and copy the example config files.</p></div></li>
+            <li><div><h3>Run the setup wizard</h3><p>Collect YouTube credentials, choose OpenAI or Gemini, and set your posting rules.</p></div></li>
+            <li><div><h3>Start the system</h3><p>Launch the service, test content generation, and let scheduled runs take over.</p></div></li>
+          </ol>
+          <div class="card">
+            <div class="queue-head" style="padding-top:0;">
+              <div><strong>First run commands</strong><br /><span>Copy the exact flow from the setup guide</span></div>
+              <span class="badge" style="padding:8px 11px; font-size:0.72rem; letter-spacing:0.12em;">10 minute setup</span>
+            </div>
+            <pre><code>git clone https://github.com/darkzOGx/youtube-automation-agent.git
+cd youtube-automation-agent
+npm install
+
+# Copy example files
+cp .env.example .env
+cp config/credentials.example.json config/credentials.json
+
+# Run the interactive setup
+npm run setup
+
+# Start the automation engine
+npm start</code></pre>
+            <ul style="margin:16px 0 0; padding:0; list-style:none; display:grid; gap:10px; color:#d7def0;">
+              <li style="position:relative; padding-left:18px;"><span style="position:absolute; left:0; top:0.5em; width:7px; height:7px; border-radius:50%; background:var(--accent2); box-shadow:0 0 0 5px rgba(56,215,196,0.08);"></span>Use the wizard to pick your AI provider and channel settings.</li>
+              <li style="position:relative; padding-left:18px;"><span style="position:absolute; left:0; top:0.5em; width:7px; height:7px; border-radius:50%; background:var(--accent2); box-shadow:0 0 0 5px rgba(56,215,196,0.08);"></span>Open the dashboard at <strong>http://localhost:3456</strong> when it is running.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="faq">
+        <div class="head">
+          <div>
+            <p class="kicker">FAQ</p>
+            <h2>Common questions, answered plainly.</h2>
+            <p class="section-copy">A few quick answers to the setup and usage questions that usually come up first.</p>
+          </div>
+        </div>
+        <details><summary>Do I need coding knowledge?</summary><p>No. The setup is designed to be guided and config-first, so you mainly fill in credentials and preferences.</p></details>
+        <details><summary>Can I use multiple channels?</summary><p>Yes. You can run multiple instances with different configurations when your workflow calls for it.</p></details>
+        <details><summary>Is this against YouTube ToS?</summary><p>It should be used for original content and within YouTube guidelines. The system itself is just automation tooling.</p></details>
+        <details><summary>How much does it cost to run?</summary><p>It can be free with Gemini for many use cases, or roughly $10-50 per month with paid providers and hosting.</p></details>
+        <details><summary>Can I customize the content style?</summary><p>Yes. Tone, topic, format, and publishing schedule are all configurable.</p></details>
+        <p class="section-copy" style="margin-top:16px;">Troubleshooting highlights: quota errors usually mean you need to check Google Cloud settings, content failures usually mean a provider key or credit issue, and publishing failures usually trace back to OAuth or channel permissions.</p>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div>
+        <strong>Ready to publish this on GitHub Pages?</strong><br />
+        <span>This repo is now laid out as a static landing site for the YouTube Automation Agent.</span>
       </div>
-      <h1>YouTube Lite</h1>
-      <p>A clean iPhone Home Screen launcher for YouTube.</p>
-    </section>
-
-    <section class="card">
-      <form class="search" id="searchForm">
-        <input id="searchInput" type="search" placeholder="Search YouTube..." autocomplete="off" />
-      </form>
-
-      <button class="primary" id="searchButton">Search YouTube</button>
-
-      <a class="link-button" href="https://m.youtube.com/">Open YouTube Home</a>
-
-      <div class="grid">
-        <a class="link-button" href="https://m.youtube.com/feed/subscriptions">Subscriptions</a>
-        <a class="link-button" href="https://m.youtube.com/shorts">Shorts</a>
-        <a class="link-button" href="https://m.youtube.com/feed/history">History</a>
-        <a class="link-button" href="https://m.youtube.com/feed/explore">Explore</a>
+      <div>
+        <a href="https://github.com/600589mbm-beep/youtube-lite-pwa" target="_blank" rel="noreferrer">View the repository</a>
       </div>
-
-      <div class="note">
-        This launcher does not block YouTube ads by itself. For an official ad-free experience, use YouTube Premium or Premium Lite where available.
-      </div>
-    </section>
-
-    <div class="footer">
-      Add this page to your iPhone Home Screen to use it like an app.
-    </div>
-  </main>
-
-  <script>
-    const searchForm = document.getElementById("searchForm");
-    const searchButton = document.getElementById("searchButton");
-    const searchInput = document.getElementById("searchInput");
-
-    function searchYouTube() {
-      const query = searchInput.value.trim();
-
-      if (!query) {
-        window.location.href = "https://m.youtube.com/";
-        return;
-      }
-
-      const url = "https://m.youtube.com/results?search_query=" + encodeURIComponent(query);
-      window.location.href = url;
-    }
-
-    searchForm.addEventListener("submit", function (event) {
-      event.preventDefault();
-      searchYouTube();
-    });
-
-    searchButton.addEventListener("click", searchYouTube);
-
-    if ("serviceWorker" in navigator) {
-      window.addEventListener("load", function () {
-        navigator.serviceWorker.register("./sw.js").catch(function () {});
-      });
-    }
-  </script>
+    </footer>
+  </div>
 </body>
 </html>
