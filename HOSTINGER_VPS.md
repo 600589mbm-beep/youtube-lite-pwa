@@ -1,6 +1,6 @@
 # Hostinger VPS Setup
 
-This repository is ready to run as a Node.js app on a Hostinger VPS.
+This repository is ready to run as a Node.js app on a Hostinger VPS, with a separate Python pipeline for daily Shorts automation.
 
 ## Recommended Hostinger path
 
@@ -18,6 +18,9 @@ Helpful docs:
 - `youtube.html` - YouTube OAuth and publish workspace
 - `app.html` - control room UI
 - `index.html` - public landing page
+- `pipeline/daily_pipeline.py` - daily Python automation runner
+- `pipeline/requirements.txt` - Python dependencies for the daily runner
+- `pipeline/cron.example` - example cron entry
 - `ecosystem.config.cjs` - PM2 config
 - `.env.example` - environment template
 
@@ -50,6 +53,34 @@ pm2 save
 
 10. Open the publisher at `/youtube`, click `Connect channel`, and finish the Google consent flow.
 11. Put rendered MP4 files into `uploads/` and queue them from the publisher page.
+12. For the daily pipeline, install Python dependencies and add a cron job.
+
+## Python pipeline setup
+
+Install ffmpeg and Python tools if they are not already present:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y ffmpeg python3 python3-venv python3-pip
+```
+
+Create a virtual environment and install the pipeline dependencies:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r pipeline/requirements.txt
+```
+
+Test the pipeline once before adding cron:
+
+```bash
+python3 pipeline/daily_pipeline.py --dry-run
+```
+
+## Cron job
+
+Use `crontab -e` and add the example from `pipeline/cron.example`. The command should point at your real repository path and your virtual environment.
 
 ## Reverse proxy
 
@@ -66,6 +97,16 @@ OPENROUTER_TITLE=YouTube Automation Agent
 HTTP_REFERER=https://your-domain.example
 PORT=3456
 APP_URL=https://your-domain.example
+ELEVENLABS_API_KEY=your-elevenlabs-api-key
+ELEVENLABS_VOICE_ID=your-elevenlabs-voice-id
+PIPELINE_TOPIC_SOURCE=coingecko
+PIPELINE_RSS_URL=https://www.coindesk.com/arc/outboundfeeds/rss/
+PIPELINE_PUBLISH_ENDPOINT=http://127.0.0.1:3456/api/youtube/publish
+PIPELINE_PUBLISH_DELAY_HOURS=24
+PIPELINE_BACKGROUND_DIR=backgrounds
+PIPELINE_TRANSCRIBE_PROVIDER=openai
+PIPELINE_WHISPER_MODEL=base
+OPENAI_API_KEY=your-openai-api-key
 YOUTUBE_CLIENT_ID=your-google-oauth-client-id
 YOUTUBE_CLIENT_SECRET=your-google-oauth-client-secret
 YOUTUBE_REDIRECT_URI=https://your-domain.example/auth/youtube/callback
@@ -76,9 +117,10 @@ YOUTUBE_DEFAULT_CATEGORY_ID=22
 
 ## Operational notes
 
-- Keep the OpenRouter API key and YouTube OAuth tokens on the VPS only.
+- Keep the OpenRouter API key, ElevenLabs API key, and YouTube OAuth tokens on the VPS only.
 - Use PM2 so the process restarts automatically if the VPS reboots.
 - Keep a backup copy of `.env` outside the repo.
 - Store rendered videos and thumbnails in `uploads/`.
 - The queue state and OAuth token cache live in `data/`.
+- The pipeline saves run artifacts under `data/pipeline/`.
 - If your Google Cloud project is unverified, uploaded videos can remain private until the YouTube audit is complete.
