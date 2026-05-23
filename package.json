@@ -12,7 +12,9 @@
     "dev": "node --watch server.js",
     "pm2:start": "pm2 start ecosystem.config.cjs --env production",
     "pm2:restart": "pm2 restart youtube-automation-agent",
-    "pm2:stop": "pm2 stop youtube-automation-agent"
+    "pm2:stop": "pm2 stop youtube-automation-agent",
+    "pipeline:daily": "python3 pipeline/daily_pipeline.py",
+    "pipeline:dry-run": "python3 pipeline/daily_pipeline.py --dry-run"
   },
   "dependencies": {
     "dotenv": "^16.4.7",
