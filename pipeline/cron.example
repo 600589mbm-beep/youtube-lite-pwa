@@ -1,0 +1,2 @@
+# Run every day at 6:00 AM server time
+0 6 * * * cd /root/youtube-lite-pwa-run && ./.venv/bin/python pipeline/daily_pipeline.py >> data/pipeline/cron.log 2>&1
