@@ -5,7 +5,7 @@ This repository now has four parts:
 - `index.html` - the public landing page that explains the system
 - `app.html` - the VPS control room that talks to OpenRouter from the server side
 - `youtube.html` - the YouTube OAuth and publish workspace
-- `pipeline/daily_pipeline.py` - the cron-ready daily short builder
+- `pipeline/daily_pipeline_safe.py` - the cron-safe daily short builder
 
 The backend is a small Node.js app that serves the pages, checks health, generates a YouTube content pack through OpenRouter, and uploads or schedules videos through the YouTube Data API without exposing your API keys to the browser.
 
@@ -29,7 +29,7 @@ The backend is a small Node.js app that serves the pages, checks health, generat
 - `app.html` - live OpenRouter console for the VPS
 - `youtube.html` - YouTube OAuth and publish workspace
 - `youtube-publishing.js` - server-side YouTube OAuth, queue, and upload logic
-- `pipeline/daily_pipeline.py` - daily cron pipeline for topic pull, script generation, voiceover, subtitles, rendering, and queueing
+- `pipeline/daily_pipeline_safe.py` - daily cron pipeline for topic pull, script generation, voiceover, subtitles, rendering, queueing, and cleanup
 - `pipeline/requirements.txt` - Python dependencies for the pipeline
 - `server.js` - Express server and route wiring
 - `package.json` - Node.js app metadata and scripts
@@ -55,6 +55,9 @@ OPENROUTER_MODEL=openai/gpt-4o-mini
 OPENROUTER_TITLE=YouTube Automation Agent
 HTTP_REFERER=https://your-domain.example
 
+# Cron-safe ffmpeg path
+FFMPEG_BINARY=/usr/bin/ffmpeg
+
 # ElevenLabs voiceover generation
 ELEVENLABS_API_KEY=your-elevenlabs-api-key
 ELEVENLABS_VOICE_ID=your-elevenlabs-voice-id
@@ -66,7 +69,10 @@ PIPELINE_RSS_URL=https://www.coindesk.com/arc/outboundfeeds/rss/
 PIPELINE_LLM_MODEL=openai/gpt-4o-mini
 PIPELINE_BACKGROUND_DIR=backgrounds
 PIPELINE_PUBLISH_ENDPOINT=http://127.0.0.1:3456/api/youtube/publish
+PIPELINE_QUEUE_ENDPOINT=http://127.0.0.1:3456/api/youtube/queue
 PIPELINE_PUBLISH_DELAY_HOURS=24
+PIPELINE_PUBLISH_TIMEOUT_MINUTES=60
+PIPELINE_POLL_SECONDS=15
 PIPELINE_PRIVACY_STATUS=private
 PIPELINE_CATEGORY_ID=22
 PIPELINE_TRANSCRIBE_PROVIDER=openai
@@ -100,16 +106,18 @@ Then open:
 
 ## Daily pipeline
 
-The Python runner in `pipeline/daily_pipeline.py` follows the exact production flow you described:
+The Python runner in `pipeline/daily_pipeline_safe.py` follows the exact production flow you described and adds the VPS hardening you called out:
 
 1. Pull a topic from CoinGecko or an RSS feed.
 2. Generate a 45-second spoken script.
 3. Synthesize an MP3 with ElevenLabs.
 4. Transcribe the audio into subtitle timestamps.
-5. Pick a background clip and render a 9:16 short.
-6. Create title, description, tags, and thumbnail text.
-7. Export the final video into `uploads/`.
-8. Queue the finished file through `/api/youtube/publish` for upload and scheduling.
+5. Resolve `ffmpeg` explicitly so cron does not depend on a perfect PATH.
+6. Pick a background clip and render a 9:16 short.
+7. Create title, description, tags, and thumbnail text.
+8. Export the final video into `uploads/`.
+9. Queue the finished file through `/api/youtube/publish` for upload and scheduling.
+10. Wait for the Node queue to confirm the upload is published, then clean up the render files.
 
 Install the Python dependencies with:
 
@@ -122,7 +130,7 @@ pip install -r pipeline/requirements.txt
 Then run it once with:
 
 ```bash
-python3 pipeline/daily_pipeline.py --dry-run
+python3 pipeline/daily_pipeline_safe.py --dry-run
 ```
 
 A cron example is included in `pipeline/cron.example`.
