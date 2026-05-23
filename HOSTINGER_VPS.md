@@ -18,7 +18,7 @@ Helpful docs:
 - `youtube.html` - YouTube OAuth and publish workspace
 - `app.html` - control room UI
 - `index.html` - public landing page
-- `pipeline/daily_pipeline.py` - daily Python automation runner
+- `pipeline/daily_pipeline_safe.py` - cron-safe Python automation runner
 - `pipeline/requirements.txt` - Python dependencies for the daily runner
 - `pipeline/cron.example` - example cron entry
 - `ecosystem.config.cjs` - PM2 config
@@ -53,7 +53,7 @@ pm2 save
 
 10. Open the publisher at `/youtube`, click `Connect channel`, and finish the Google consent flow.
 11. Put rendered MP4 files into `uploads/` and queue them from the publisher page.
-12. For the daily pipeline, install Python dependencies and add a cron job.
+12. For the daily pipeline, install Python dependencies and add the cron job.
 
 ## Python pipeline setup
 
@@ -63,6 +63,8 @@ Install ffmpeg and Python tools if they are not already present:
 sudo apt-get update
 sudo apt-get install -y ffmpeg python3 python3-venv python3-pip
 ```
+
+If cron cannot find `ffmpeg`, set `FFMPEG_BINARY` in `.env` to the exact path, such as `/usr/bin/ffmpeg`.
 
 Create a virtual environment and install the pipeline dependencies:
 
@@ -75,12 +77,12 @@ pip install -r pipeline/requirements.txt
 Test the pipeline once before adding cron:
 
 ```bash
-python3 pipeline/daily_pipeline.py --dry-run
+python3 pipeline/daily_pipeline_safe.py --dry-run
 ```
 
 ## Cron job
 
-Use `crontab -e` and add the example from `pipeline/cron.example`. The command should point at your real repository path and your virtual environment.
+Use `crontab -e` and add the example from `pipeline/cron.example`. The command should point at your real repository path and your virtual environment. The runner resolves `ffmpeg`, retries temporary API failures, waits for the Node queue to finish, and then deletes the finished render files.
 
 ## Reverse proxy
 
@@ -97,12 +99,16 @@ OPENROUTER_TITLE=YouTube Automation Agent
 HTTP_REFERER=https://your-domain.example
 PORT=3456
 APP_URL=https://your-domain.example
+FFMPEG_BINARY=/usr/bin/ffmpeg
 ELEVENLABS_API_KEY=your-elevenlabs-api-key
 ELEVENLABS_VOICE_ID=your-elevenlabs-voice-id
 PIPELINE_TOPIC_SOURCE=coingecko
 PIPELINE_RSS_URL=https://www.coindesk.com/arc/outboundfeeds/rss/
 PIPELINE_PUBLISH_ENDPOINT=http://127.0.0.1:3456/api/youtube/publish
+PIPELINE_QUEUE_ENDPOINT=http://127.0.0.1:3456/api/youtube/queue
 PIPELINE_PUBLISH_DELAY_HOURS=24
+PIPELINE_PUBLISH_TIMEOUT_MINUTES=60
+PIPELINE_POLL_SECONDS=15
 PIPELINE_BACKGROUND_DIR=backgrounds
 PIPELINE_TRANSCRIBE_PROVIDER=openai
 PIPELINE_WHISPER_MODEL=base
