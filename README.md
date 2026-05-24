@@ -20,7 +20,7 @@ The backend is a small Node.js app that serves the pages, checks health, generat
 - Exposes `/api/youtube/queue` for queued publish jobs
 - Exposes `/api/youtube/publish` to queue a video upload
 - Exposes `/api/youtube/disconnect` to clear the stored OAuth token
-- Uses `OPENROUTER_API_KEY`, `ELEVENLABS_API_KEY`, and the YouTube OAuth tokens only on the server
+- Uses `OPENROUTER_API_KEY`, `VOICEBOX_URL`, `VOICEBOX_PROFILE_ID`, `VOICEBOX_LANGUAGE`, and the YouTube OAuth tokens only on the server
 - Lets the Python pipeline build a finished short and hand it off to the existing upload queue
 
 ## Files
@@ -58,10 +58,10 @@ HTTP_REFERER=https://your-domain.example
 # Cron-safe ffmpeg path
 FFMPEG_BINARY=/usr/bin/ffmpeg
 
-# ElevenLabs voiceover generation
-ELEVENLABS_API_KEY=your-elevenlabs-api-key
-ELEVENLABS_VOICE_ID=your-elevenlabs-voice-id
-ELEVENLABS_MODEL_ID=eleven_multilingual_v2
+# Voicebox voiceover generation
+VOICEBOX_URL=http://127.0.0.1:17493
+VOICEBOX_PROFILE_ID=your-voicebox-profile-id
+VOICEBOX_LANGUAGE=en
 
 # Daily automation pipeline
 PIPELINE_TOPIC_SOURCE=coingecko
@@ -110,7 +110,7 @@ The Python runner in `pipeline/daily_pipeline_safe.py` follows the exact product
 
 1. Pull a topic from CoinGecko or an RSS feed.
 2. Generate a 45-second spoken script.
-3. Synthesize an MP3 with ElevenLabs.
+3. Synthesize an MP3 with Voicebox or ElevenLabs.
 4. Transcribe the audio into subtitle timestamps.
 5. Resolve `ffmpeg` explicitly so cron does not depend on a perfect PATH.
 6. Pick a background clip and render a 9:16 short.
@@ -186,6 +186,6 @@ The backend uses OpenRouter's Chat Completions endpoint and sends the recommende
 
 ## Important
 
-- Keep your OpenRouter key, ElevenLabs key, and YouTube OAuth tokens on the server only.
+- Keep your OpenRouter key, Voicebox config, and YouTube OAuth tokens on the server only.
 - The landing page remains available for sharing, while the control room and publisher are what you run on the VPS.
 - If you want, the next step after this is wiring the pipeline to a template pack for background footage, captions, and thumbnail styles.

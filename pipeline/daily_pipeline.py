@@ -2,9 +2,10 @@
 """Daily YouTube Shorts pipeline.
 
 This runner pulls a topic signal, generates a 45-second script, synthesizes a
-voiceover, transcribes it into subtitles, renders a vertical short with a random
-background clip, generates packaging metadata, and hands the finished video off
-to the existing YouTube upload queue in the Node app.
+voiceover with Voicebox or ElevenLabs, transcribes it into subtitles, renders a
+vertical short with a random background clip, generates packaging metadata, and
+hands the finished video off to the existing YouTube upload queue in the Node
+app.
 """
 
 from __future__ import annotations
@@ -53,6 +54,10 @@ class PipelineConfig:
     llm_base_url: str
     openrouter_title: str
     http_referer: str
+    voice_backend: str
+    voicebox_url: str
+    voicebox_profile_id: str
+    voicebox_language: str
     elevenlabs_api_key: str
     elevenlabs_voice_id: str
     elevenlabs_model_id: str
@@ -172,13 +177,24 @@ def load_config() -> PipelineConfig:
     if not llm_api_key:
         raise SystemExit("OPENROUTER_API_KEY is required for the daily pipeline.")
 
-    elevenlabs_api_key = os.getenv("ELEVENLABS_API_KEY", "").strip()
-    if not elevenlabs_api_key:
-        raise SystemExit("ELEVENLABS_API_KEY is required for voiceover generation.")
+    voicebox_url = os.getenv("VOICEBOX_URL", "").strip()
+    voicebox_profile_id = os.getenv("VOICEBOX_PROFILE_ID", "").strip()
+    voicebox_language = os.getenv("VOICEBOX_LANGUAGE", "en").strip() or "en"
+    voice_backend = "voicebox" if voicebox_url else "elevenlabs"
 
-    elevenlabs_voice_id = os.getenv("ELEVENLABS_VOICE_ID", "").strip()
-    if not elevenlabs_voice_id:
-        raise SystemExit("ELEVENLABS_VOICE_ID is required for voiceover generation.")
+    elevenlabs_api_key = ""
+    elevenlabs_voice_id = ""
+    if voice_backend == "voicebox":
+        if not voicebox_profile_id:
+            raise SystemExit("VOICEBOX_PROFILE_ID is required when VOICEBOX_URL is set.")
+    else:
+        elevenlabs_api_key = os.getenv("ELEVENLABS_API_KEY", "").strip()
+        if not elevenlabs_api_key:
+            raise SystemExit("ELEVENLABS_API_KEY is required for voiceover generation.")
+
+        elevenlabs_voice_id = os.getenv("ELEVENLABS_VOICE_ID", "").strip()
+        if not elevenlabs_voice_id:
+            raise SystemExit("ELEVENLABS_VOICE_ID is required for voiceover generation.")
 
     topic_source = os.getenv("PIPELINE_TOPIC_SOURCE", "coingecko").strip().lower() or "coingecko"
     if topic_source not in {"coingecko", "rss"}:
@@ -195,6 +211,10 @@ def load_config() -> PipelineConfig:
         llm_base_url=os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1").strip(),
         openrouter_title=os.getenv("OPENROUTER_TITLE", "YouTube Automation Agent").strip() or "YouTube Automation Agent",
         http_referer=os.getenv("HTTP_REFERER", os.getenv("APP_URL", "http://localhost:3456")).strip(),
+        voice_backend=voice_backend,
+        voicebox_url=voicebox_url,
+        voicebox_profile_id=voicebox_profile_id,
+        voicebox_language=voicebox_language,
         elevenlabs_api_key=elevenlabs_api_key,
         elevenlabs_voice_id=elevenlabs_voice_id,
         elevenlabs_model_id=os.getenv("ELEVENLABS_MODEL_ID", "eleven_multilingual_v2").strip() or "eleven_multilingual_v2",
@@ -365,27 +385,42 @@ def generate_metadata(topic: str, spoken_script: str, config: PipelineConfig) ->
 
 
 def synthesize_voiceover(script: str, output_path: Path, config: PipelineConfig) -> None:
-    url = f"https://api.elevenlabs.io/v1/text-to-speech/{config.elevenlabs_voice_id}"
-    response = requests.post(
-        url,
-        headers={
-            "xi-api-key": config.elevenlabs_api_key,
-            "Content-Type": "application/json",
-            "Accept": "audio/mpeg",
-        },
-        json={
-            "text": script,
-            "model_id": config.elevenlabs_model_id,
-            "voice_settings": {
-                "stability": 0.45,
-                "similarity_boost": 0.8,
-                "style": 0.25,
-                "use_speaker_boost": True,
+    if config.voice_backend == "voicebox":
+        response = requests.post(
+            f"{config.voicebox_url.rstrip('/')}/generate",
+            headers={
+                "Content-Type": "application/json",
+                "Accept": "audio/mpeg",
             },
-        },
-        stream=True,
-        timeout=180,
-    )
+            json={
+                "text": script,
+                "profile_id": config.voicebox_profile_id,
+                "language": config.voicebox_language,
+            },
+            stream=True,
+            timeout=180,
+        )
+    else:
+        response = requests.post(
+            f"https://api.elevenlabs.io/v1/text-to-speech/{config.elevenlabs_voice_id}",
+            headers={
+                "xi-api-key": config.elevenlabs_api_key,
+                "Content-Type": "application/json",
+                "Accept": "audio/mpeg",
+            },
+            json={
+                "text": script,
+                "model_id": config.elevenlabs_model_id,
+                "voice_settings": {
+                    "stability": 0.45,
+                    "similarity_boost": 0.8,
+                    "style": 0.25,
+                    "use_speaker_boost": True,
+                },
+            },
+            stream=True,
+            timeout=180,
+        )
     response.raise_for_status()
     with output_path.open("wb") as handle:
         for chunk in response.iter_content(chunk_size=8192):
