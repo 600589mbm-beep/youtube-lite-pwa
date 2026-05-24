@@ -6,7 +6,7 @@ This folder contains the cron-safe Python runner that turns one daily topic sign
 
 1. Pull a topic signal from CoinGecko or an RSS feed.
 2. Generate a punchy 45-second spoken script.
-3. Synthesize a voiceover with Voicebox or ElevenLabs.
+3. Synthesize a voiceover with Voicebox.
 4. Transcribe the voiceover into subtitle timestamps.
 5. Resolve `ffmpeg` explicitly so cron does not depend on a perfect PATH.
 6. Select a background clip and render a vertical 9:16 short.
@@ -35,9 +35,9 @@ Set these values in the VPS `.env` file:
 
 Optional but recommended:
 
+- `VOICEBOX_LANGUAGE` if your profile should speak in a specific language
 - `OPENAI_API_KEY` for Whisper transcription when `PIPELINE_TRANSCRIBE_PROVIDER=openai`
 - `PIPELINE_WHISPER_MODEL` for local transcription when `PIPELINE_TRANSCRIBE_PROVIDER=local`
-- `ELEVENLABS_API_KEY` and `ELEVENLABS_VOICE_ID` only if you want the old ElevenLabs fallback
 
 ## Install
 

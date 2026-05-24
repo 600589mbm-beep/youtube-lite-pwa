@@ -110,7 +110,7 @@ The Python runner in `pipeline/daily_pipeline_safe.py` follows the exact product
 
 1. Pull a topic from CoinGecko or an RSS feed.
 2. Generate a 45-second spoken script.
-3. Synthesize an MP3 with Voicebox or ElevenLabs.
+3. Synthesize an MP3 with Voicebox.
 4. Transcribe the audio into subtitle timestamps.
 5. Resolve `ffmpeg` explicitly so cron does not depend on a perfect PATH.
 6. Pick a background clip and render a 9:16 short.
