@@ -100,8 +100,9 @@ HTTP_REFERER=https://your-domain.example
 PORT=3456
 APP_URL=https://your-domain.example
 FFMPEG_BINARY=/usr/bin/ffmpeg
-ELEVENLABS_API_KEY=your-elevenlabs-api-key
-ELEVENLABS_VOICE_ID=your-elevenlabs-voice-id
+VOICEBOX_URL=http://127.0.0.1:17493
+VOICEBOX_PROFILE_ID=your-voicebox-profile-id
+VOICEBOX_LANGUAGE=en
 PIPELINE_TOPIC_SOURCE=coingecko
 PIPELINE_RSS_URL=https://www.coindesk.com/arc/outboundfeeds/rss/
 PIPELINE_PUBLISH_ENDPOINT=http://127.0.0.1:3456/api/youtube/publish
@@ -123,7 +124,7 @@ YOUTUBE_DEFAULT_CATEGORY_ID=22
 
 ## Operational notes
 
-- Keep the OpenRouter API key, ElevenLabs API key, and YouTube OAuth tokens on the VPS only.
+- Keep the OpenRouter API key, Voicebox URL and profile, and YouTube OAuth tokens on the VPS only.
 - Use PM2 so the process restarts automatically if the VPS reboots.
 - Keep a backup copy of `.env` outside the repo.
 - Store rendered videos and thumbnails in `uploads/`.
