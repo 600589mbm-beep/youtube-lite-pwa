@@ -45,12 +45,19 @@ cd "${APP_DIR}"
 export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH:-}"
 
 # Load .env (the pipeline also loads it via dotenv, but exporting here keeps the
-# venv subprocess and any child tools consistent).
+# venv subprocess and any child tools consistent). Parse line-by-line instead of
+# `source`: values may contain unquoted spaces (e.g. OPENROUTER_TITLE) that would
+# make `. .env` try to run the rest of the value as a command.
 if [[ -f "${APP_DIR}/.env" ]]; then
-  set -a
-  # shellcheck disable=SC1091
-  . "${APP_DIR}/.env"
-  set +a
+  while IFS= read -r line || [[ -n "${line}" ]]; do
+    [[ "${line}" =~ ^[[:space:]]*# ]] && continue   # comment
+    [[ "${line}" != *=* ]] && continue              # not KEY=VALUE
+    key="${line%%=*}"
+    val="${line#*=}"
+    key="${key//[[:space:]]/}"
+    [[ -z "${key}" ]] && continue
+    export "${key}=${val}"
+  done < "${APP_DIR}/.env"
 fi
 
 # Reliable ffmpeg: prefer system binary, fall back to the imageio-ffmpeg one.
