@@ -40,6 +40,8 @@ from moviepy.editor import ColorClip, VideoFileClip, concatenate_videoclips
 from openai import OpenAI
 from PIL import Image, ImageDraw, ImageFont
 
+from visual_background import load_footage_clip, make_crypto_background
+
 ROOT_DIR = Path(__file__).resolve().parents[1]
 ENV_PATH = ROOT_DIR / ".env"
 if ENV_PATH.exists():
@@ -423,28 +425,13 @@ def render_background(source_path: Optional[Path], output_path: Path, duration_s
 
 
 def build_background_clip(source_path: Optional[Path], duration_seconds: int):
-    if source_path is None:
-        return ColorClip(size=TARGET_SIZE, color=(10, 14, 25), duration=duration_seconds)
-
-    clip = VideoFileClip(str(source_path))
-    if clip.duration <= 0:
-        clip.close()
-        raise SystemExit(f"Background clip {source_path} has no duration.")
-
-    if clip.duration < duration_seconds:
-        repeats = int(duration_seconds // clip.duration) + 1
-        clip = concatenate_videoclips([clip.copy() for _ in range(repeats)])
-
-    if clip.duration > duration_seconds:
-        max_start = max(0.0, clip.duration - duration_seconds)
-        start = random.uniform(0.0, max_start) if max_start > 0 else 0.0
-        clip = clip.subclip(start, start + duration_seconds)
-
-    clip = clip.resize(height=TARGET_SIZE[1])
-    if clip.w < TARGET_SIZE[0]:
-        clip = clip.resize(width=TARGET_SIZE[0])
-    clip = clip.crop(x_center=clip.w / 2, y_center=clip.h / 2, width=TARGET_SIZE[0], height=TARGET_SIZE[1])
-    return clip
+    # Use real footage only when it is present AND usable (not zero-duration and
+    # not visually near-black); otherwise generate a copyright-safe animated
+    # crypto background so the final Short is never black.
+    clip = load_footage_clip(source_path, duration_seconds, TARGET_SIZE)
+    if clip is not None:
+        return clip
+    return make_crypto_background(duration_seconds, TARGET_SIZE)
 
 
 def create_thumbnail(source_path: Optional[Path], thumbnail_text: str, output_path: Path) -> None:
@@ -897,28 +884,13 @@ def render_background(source_path: Optional[Path], output_path: Path, duration_s
 
 
 def build_background_clip(source_path: Optional[Path], duration_seconds: int):
-    if source_path is None:
-        return ColorClip(size=TARGET_SIZE, color=(10, 14, 25), duration=duration_seconds)
-
-    clip = VideoFileClip(str(source_path))
-    if clip.duration <= 0:
-        clip.close()
-        raise SystemExit(f"Background clip {source_path} has no duration.")
-
-    if clip.duration < duration_seconds:
-        repeats = int(duration_seconds // clip.duration) + 1
-        clip = concatenate_videoclips([clip.copy() for _ in range(repeats)])
-
-    if clip.duration > duration_seconds:
-        max_start = max(0.0, clip.duration - duration_seconds)
-        start = random.uniform(0.0, max_start) if max_start > 0 else 0.0
-        clip = clip.subclip(start, start + duration_seconds)
-
-    clip = clip.resize(height=TARGET_SIZE[1])
-    if clip.w < TARGET_SIZE[0]:
-        clip = clip.resize(width=TARGET_SIZE[0])
-    clip = clip.crop(x_center=clip.w / 2, y_center=clip.h / 2, width=TARGET_SIZE[0], height=TARGET_SIZE[1])
-    return clip
+    # Use real footage only when it is present AND usable (not zero-duration and
+    # not visually near-black); otherwise generate a copyright-safe animated
+    # crypto background so the final Short is never black.
+    clip = load_footage_clip(source_path, duration_seconds, TARGET_SIZE)
+    if clip is not None:
+        return clip
+    return make_crypto_background(duration_seconds, TARGET_SIZE)
 
 
 def create_thumbnail(source_path: Optional[Path], thumbnail_text: str, output_path: Path) -> None:

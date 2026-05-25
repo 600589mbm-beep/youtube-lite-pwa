@@ -79,6 +79,21 @@ if ! flock -n 9; then
   exit 0
 fi
 
+# --- retention sweep ---------------------------------------------------------
+# Keep disk bounded: drop rendered shorts and per-run scratch dirs older than
+# RETENTION_DAYS. Terminal jobs (published/failed) and same-day pending uploads
+# resolve well within this window, so this never deletes an in-flight upload.
+RETENTION_DAYS="${RETENTION_DAYS:-3}"
+pruned=0
+if [[ -d "${APP_DIR}/uploads" ]]; then
+  while IFS= read -r -d '' f; do rm -f "$f" && pruned=$((pruned+1)); done \
+    < <(find "${APP_DIR}/uploads" -maxdepth 1 -type f -name 'final_short_*' -mtime "+${RETENTION_DAYS}" -print0 2>/dev/null)
+fi
+if [[ -d "${APP_DIR}/data/pipeline/runs" ]]; then
+  find "${APP_DIR}/data/pipeline/runs" -mindepth 1 -maxdepth 1 -type d -mtime "+${RETENTION_DAYS}" -exec rm -rf {} + 2>/dev/null || true
+fi
+[[ ${pruned} -gt 0 ]] && log "PRUNE: removed ${pruned} rendered short(s) older than ${RETENTION_DAYS}d."
+
 log "START: ${PY} ${PIPELINE_ARGS[*]} (ffmpeg=${FFMPEG_BINARY:-unset}, timeout=${PIPELINE_TIMEOUT})"
 set +e
 timeout "${PIPELINE_TIMEOUT}" "${PY}" "${PIPELINE_ARGS[@]}" >> "${LOG_FILE}" 2>&1
