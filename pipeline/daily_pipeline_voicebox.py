@@ -73,6 +73,7 @@ class PipelineConfig:
     voicebox_url: str
     voicebox_profile_id: str
     voicebox_language: str
+    voicebox_engine: str
     openai_api_key: str
     transcription_provider: str
     whisper_model: str
@@ -210,6 +211,10 @@ def load_config() -> PipelineConfig:
 
     ffmpeg_binary = os.getenv("FFMPEG_BINARY", "").strip()
     voicebox_language = os.getenv("VOICEBOX_LANGUAGE", "").strip()
+    # Voicebox engine to request. Defaults to the lightweight CPU engine
+    # (Kokoro, 82M) so generation fits in memory on a GPU-less VPS. Heavier
+    # engines like qwen 1.7B can OOM under constrained container memory.
+    voicebox_engine = os.getenv("VOICEBOX_ENGINE", "kokoro").strip() or "kokoro"
 
     return PipelineConfig(
         openrouter_api_key=openrouter_api_key,
@@ -220,6 +225,7 @@ def load_config() -> PipelineConfig:
         voicebox_url=voicebox_url,
         voicebox_profile_id=voicebox_profile_id,
         voicebox_language=voicebox_language,
+        voicebox_engine=voicebox_engine,
         openai_api_key=os.getenv("OPENAI_API_KEY", "").strip(),
         transcription_provider=os.getenv("PIPELINE_TRANSCRIBE_PROVIDER", "openai").strip().lower() or "openai",
         whisper_model=os.getenv("PIPELINE_WHISPER_MODEL", DEFAULT_WHISPER_MODEL).strip() or DEFAULT_WHISPER_MODEL,
@@ -246,6 +252,9 @@ def synthesize_voiceover(script: str, output_path: Path, config: PipelineConfig)
     if config.voicebox_language:
         payload["language"] = config.voicebox_language
 
+    if config.voicebox_engine:
+        payload["engine"] = config.voicebox_engine
+
     response = requests.post(endpoint, json=payload, timeout=180)
     response.raise_for_status()
 
@@ -257,6 +266,50 @@ def synthesize_voiceover(script: str, output_path: Path, config: PipelineConfig)
     except ValueError:
         data = {}
 
+    # Fast paths: a Voicebox build that answers synchronously with a usable
+    # local path, URL, or raw audio body. Tried first for forward-compat.
+    if _write_audio_from_response(data, response, output_path):
+        return
+
+    # Async path (current Voicebox API): POST /generate returns immediately
+    # with {"id": ..., "status": "generating"}. Poll the generation status,
+    # then download the finished audio from /audio/{id}.
+    generation_id = data.get("id")
+    if not generation_id:
+        raise SystemExit("Voicebox did not return an audio file or a generation id.")
+
+    base = config.voicebox_url.rstrip("/")
+    deadline = time.monotonic() + 600  # 10 min cap for CPU synthesis
+    while time.monotonic() < deadline:
+        status_resp = requests.get(f"{base}/generate/{generation_id}/status", timeout=30)
+        status_resp.raise_for_status()
+        body = status_resp.text.strip()
+        if body.startswith("data:"):  # SSE-style framing
+            body = body[len("data:"):].strip()
+        try:
+            status_data = json.loads(body)
+        except ValueError:
+            status_data = {}
+        status = str(status_data.get("status", "")).lower()
+        if status in {"complete", "completed", "done", "success", "succeeded"}:
+            break
+        if status in {"failed", "error", "cancelled", "canceled"}:
+            raise SystemExit(
+                f"Voicebox generation {generation_id} failed: {status_data.get('error') or status}"
+            )
+        time.sleep(3)
+    else:
+        raise SystemExit(f"Voicebox generation {generation_id} timed out.")
+
+    audio_resp = requests.get(f"{base}/audio/{generation_id}", timeout=180)
+    audio_resp.raise_for_status()
+    if not audio_resp.content:
+        raise SystemExit(f"Voicebox returned empty audio for generation {generation_id}.")
+    output_path.write_bytes(audio_resp.content)
+
+
+def _write_audio_from_response(data: Dict[str, Any], response, output_path: Path) -> bool:
+    """Write audio if the /generate response already carries it. Returns True on success."""
     audio_path = data.get("audio_path")
     if audio_path:
         source = Path(str(audio_path)).expanduser()
@@ -264,7 +317,7 @@ def synthesize_voiceover(script: str, output_path: Path, config: PipelineConfig)
             source = (ROOT_DIR / source).resolve()
         if source.exists():
             shutil.copyfile(source, output_path)
-            return
+            return True
 
     for candidate_key in ("audio_url", "download_url", "url"):
         audio_url = data.get(candidate_key)
@@ -272,14 +325,14 @@ def synthesize_voiceover(script: str, output_path: Path, config: PipelineConfig)
             download = requests.get(str(audio_url), timeout=180)
             download.raise_for_status()
             output_path.write_bytes(download.content)
-            return
+            return True
 
     content_type = response.headers.get("content-type", "").lower()
     if content_type.startswith("audio/") and response.content:
         output_path.write_bytes(response.content)
-        return
+        return True
 
-    raise SystemExit("Voicebox did not return an audio file path or audio payload.")
+    return False
 
 
 def transcribe_audio(audio_path: Path, config: PipelineConfig) -> List[Dict[str, Any]]:
