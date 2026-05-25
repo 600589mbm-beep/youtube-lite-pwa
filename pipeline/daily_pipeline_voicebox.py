@@ -40,7 +40,22 @@ from moviepy.editor import ColorClip, VideoFileClip, concatenate_videoclips
 from openai import OpenAI
 from PIL import Image, ImageDraw, ImageFont
 
-from visual_background import load_footage_clip, make_crypto_background
+from visual_background import (
+    choose_style,
+    load_footage_clip,
+    make_crypto_background,
+    make_intro_card,
+    make_thumbnail,
+)
+
+# NOTE (dead-code map): this module contains two concatenated copies of several
+# functions. Python keeps the LAST definition, so the LIVE entrypoint is
+# main() -> run_pipeline() -> retryable_publish_pipeline() (near the bottom), and
+# the LIVE copies of render_background / build_background_clip / create_thumbnail /
+# render_final_short are the LATER ones. The earlier first-block copies (and the
+# first main()) are SHADOWED/DEAD — do not edit them expecting an effect. Edits
+# that must apply to both copies are done with replace_all to keep them identical.
+# A full de-duplication is deferred to avoid a risky rewrite of this large file.
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
 ENV_PATH = ROOT_DIR / ".env"
@@ -408,8 +423,9 @@ def write_srt(segments: Iterable[Dict[str, Any]], output_path: Path) -> None:
     output_path.write_text("\n".join(blocks), encoding="utf-8")
 
 
-def render_background(source_path: Optional[Path], output_path: Path, duration_seconds: int) -> None:
-    clip = build_background_clip(source_path, duration_seconds)
+def render_background(source_path: Optional[Path], output_path: Path, duration_seconds: int,
+                      style: Optional[str] = None, seed: Optional[int] = None) -> None:
+    clip = build_background_clip(source_path, duration_seconds, style=style, seed=seed)
     try:
         clip.write_videofile(
             str(output_path),
@@ -424,74 +440,48 @@ def render_background(source_path: Optional[Path], output_path: Path, duration_s
         clip.close()
 
 
-def build_background_clip(source_path: Optional[Path], duration_seconds: int):
+def build_background_clip(source_path: Optional[Path], duration_seconds: int,
+                          style: Optional[str] = None, seed: Optional[int] = None):
     # Use real footage only when it is present AND usable (not zero-duration and
     # not visually near-black); otherwise generate a copyright-safe animated
-    # crypto background so the final Short is never black.
+    # crypto background (one of several styles) so the final Short is never black.
     clip = load_footage_clip(source_path, duration_seconds, TARGET_SIZE)
     if clip is not None:
         return clip
-    return make_crypto_background(duration_seconds, TARGET_SIZE)
+    return make_crypto_background(duration_seconds, TARGET_SIZE, seed=seed, style=style)
 
 
-def create_thumbnail(source_path: Optional[Path], thumbnail_text: str, output_path: Path) -> None:
-    if source_path and source_path.exists():
-        clip = VideoFileClip(str(source_path))
-        try:
-            frame = clip.get_frame(min(0.5, max(0.0, clip.duration / 4)))
-        finally:
-            clip.close()
-        image = Image.fromarray(frame).convert("RGBA")
-    else:
-        image = Image.new("RGBA", (1280, 720), (10, 14, 25, 255))
-
-    image = image.resize((1280, 720))
-    overlay = Image.new("RGBA", image.size, (0, 0, 0, 90))
-    image = Image.alpha_composite(image, overlay)
-    draw = ImageDraw.Draw(image)
-
-    font = load_font(74)
-    text = wrap_text_for_width(thumbnail_text.upper(), font, 1040)
-    bbox = draw.multiline_textbbox((0, 0), text, font=font, spacing=12, align="center")
-    width = bbox[2] - bbox[0]
-    height = bbox[3] - bbox[1]
-    x = (1280 - width) / 2
-    y = (720 - height) / 2
-
-    draw.rounded_rectangle([(64, 64), (1216, 656)], radius=34, outline=(255, 255, 255, 100), width=4)
-    draw.multiline_text((x + 6, y + 6), text, font=font, fill=(0, 0, 0, 220), spacing=12, align="center")
-    draw.multiline_text((x, y), text, font=font, fill=(255, 255, 255, 255), spacing=12, align="center")
-    image.convert("RGB").save(output_path, format="JPEG", quality=92, optimize=True)
+def create_thumbnail(source_path: Optional[Path], thumbnail_text: str, output_path: Path,
+                     style: Optional[str] = None, seed: Optional[int] = None) -> None:
+    # Bold crypto-news layout (badge + accent bar + headline over a style backdrop),
+    # not just a darkened frame. `source_path` kept for signature compatibility.
+    make_thumbnail(source_path, thumbnail_text, output_path, style=style, seed=seed)
 
 
-def render_final_short(background_path: Path, audio_path: Path, subtitles_path: Path, output_path: Path, ffmpeg_binary: str) -> None:
+def render_final_short(background_path: Path, audio_path: Path, subtitles_path: Path, output_path: Path,
+                       ffmpeg_binary: str, intro_card_path: Optional[Path] = None) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    command = [
-        ffmpeg_binary,
-        "-y",
-        "-i",
-        str(background_path),
-        "-i",
-        str(audio_path),
-        "-vf",
-        f"subtitles={escape_ffmpeg_path(subtitles_path)}:force_style='{subtitle_style()}'",
-        "-map",
-        "0:v:0",
-        "-map",
-        "1:a:0",
-        "-c:v",
-        "libx264",
-        "-preset",
-        "veryfast",
-        "-crf",
-        "18",
-        "-c:a",
-        "aac",
-        "-b:a",
-        "192k",
-        "-shortest",
-        "-movflags",
-        "+faststart",
+    subs = f"subtitles={escape_ffmpeg_path(subtitles_path)}:force_style='{subtitle_style()}'"
+    command = [ffmpeg_binary, "-y", "-i", str(background_path), "-i", str(audio_path)]
+
+    if intro_card_path is not None and Path(intro_card_path).exists():
+        # Overlay a full-screen crypto-news card for ~0.8s near t=1.0s. This
+        # changes no timestamps/audio (subtitles stay in sync underneath) and
+        # gives YouTube's auto-thumbnail picker a strong frame to choose.
+        command += ["-i", str(intro_card_path)]
+        filter_complex = (
+            f"[0:v]{subs}[v0];"
+            "[2:v]format=rgba[card];"
+            "[v0][card]overlay=0:0:enable='between(t,1.0,1.8)'[v]"
+        )
+        command += ["-filter_complex", filter_complex, "-map", "[v]", "-map", "1:a:0"]
+    else:
+        command += ["-vf", subs, "-map", "0:v:0", "-map", "1:a:0"]
+
+    command += [
+        "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
+        "-c:a", "aac", "-b:a", "192k",
+        "-shortest", "-movflags", "+faststart",
         str(output_path),
     ]
     completed = subprocess.run(command, capture_output=True, text=True)
@@ -867,8 +857,9 @@ def ensure_directories() -> None:
     RUNS_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def render_background(source_path: Optional[Path], output_path: Path, duration_seconds: int) -> None:
-    clip = build_background_clip(source_path, duration_seconds)
+def render_background(source_path: Optional[Path], output_path: Path, duration_seconds: int,
+                      style: Optional[str] = None, seed: Optional[int] = None) -> None:
+    clip = build_background_clip(source_path, duration_seconds, style=style, seed=seed)
     try:
         clip.write_videofile(
             str(output_path),
@@ -883,74 +874,48 @@ def render_background(source_path: Optional[Path], output_path: Path, duration_s
         clip.close()
 
 
-def build_background_clip(source_path: Optional[Path], duration_seconds: int):
+def build_background_clip(source_path: Optional[Path], duration_seconds: int,
+                          style: Optional[str] = None, seed: Optional[int] = None):
     # Use real footage only when it is present AND usable (not zero-duration and
     # not visually near-black); otherwise generate a copyright-safe animated
-    # crypto background so the final Short is never black.
+    # crypto background (one of several styles) so the final Short is never black.
     clip = load_footage_clip(source_path, duration_seconds, TARGET_SIZE)
     if clip is not None:
         return clip
-    return make_crypto_background(duration_seconds, TARGET_SIZE)
+    return make_crypto_background(duration_seconds, TARGET_SIZE, seed=seed, style=style)
 
 
-def create_thumbnail(source_path: Optional[Path], thumbnail_text: str, output_path: Path) -> None:
-    if source_path and source_path.exists():
-        clip = VideoFileClip(str(source_path))
-        try:
-            frame = clip.get_frame(min(0.5, max(0.0, clip.duration / 4)))
-        finally:
-            clip.close()
-        image = Image.fromarray(frame).convert("RGBA")
-    else:
-        image = Image.new("RGBA", (1280, 720), (10, 14, 25, 255))
-
-    image = image.resize((1280, 720))
-    overlay = Image.new("RGBA", image.size, (0, 0, 0, 90))
-    image = Image.alpha_composite(image, overlay)
-    draw = ImageDraw.Draw(image)
-
-    font = load_font(74)
-    text = wrap_text_for_width(thumbnail_text.upper(), font, 1040)
-    bbox = draw.multiline_textbbox((0, 0), text, font=font, spacing=12, align="center")
-    width = bbox[2] - bbox[0]
-    height = bbox[3] - bbox[1]
-    x = (1280 - width) / 2
-    y = (720 - height) / 2
-
-    draw.rounded_rectangle([(64, 64), (1216, 656)], radius=34, outline=(255, 255, 255, 100), width=4)
-    draw.multiline_text((x + 6, y + 6), text, font=font, fill=(0, 0, 0, 220), spacing=12, align="center")
-    draw.multiline_text((x, y), text, font=font, fill=(255, 255, 255, 255), spacing=12, align="center")
-    image.convert("RGB").save(output_path, format="JPEG", quality=92, optimize=True)
+def create_thumbnail(source_path: Optional[Path], thumbnail_text: str, output_path: Path,
+                     style: Optional[str] = None, seed: Optional[int] = None) -> None:
+    # Bold crypto-news layout (badge + accent bar + headline over a style backdrop),
+    # not just a darkened frame. `source_path` kept for signature compatibility.
+    make_thumbnail(source_path, thumbnail_text, output_path, style=style, seed=seed)
 
 
-def render_final_short(background_path: Path, audio_path: Path, subtitles_path: Path, output_path: Path, ffmpeg_binary: str) -> None:
+def render_final_short(background_path: Path, audio_path: Path, subtitles_path: Path, output_path: Path,
+                       ffmpeg_binary: str, intro_card_path: Optional[Path] = None) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    command = [
-        ffmpeg_binary,
-        "-y",
-        "-i",
-        str(background_path),
-        "-i",
-        str(audio_path),
-        "-vf",
-        f"subtitles={escape_ffmpeg_path(subtitles_path)}:force_style='{subtitle_style()}'",
-        "-map",
-        "0:v:0",
-        "-map",
-        "1:a:0",
-        "-c:v",
-        "libx264",
-        "-preset",
-        "veryfast",
-        "-crf",
-        "18",
-        "-c:a",
-        "aac",
-        "-b:a",
-        "192k",
-        "-shortest",
-        "-movflags",
-        "+faststart",
+    subs = f"subtitles={escape_ffmpeg_path(subtitles_path)}:force_style='{subtitle_style()}'"
+    command = [ffmpeg_binary, "-y", "-i", str(background_path), "-i", str(audio_path)]
+
+    if intro_card_path is not None and Path(intro_card_path).exists():
+        # Overlay a full-screen crypto-news card for ~0.8s near t=1.0s. This
+        # changes no timestamps/audio (subtitles stay in sync underneath) and
+        # gives YouTube's auto-thumbnail picker a strong frame to choose.
+        command += ["-i", str(intro_card_path)]
+        filter_complex = (
+            f"[0:v]{subs}[v0];"
+            "[2:v]format=rgba[card];"
+            "[v0][card]overlay=0:0:enable='between(t,1.0,1.8)'[v]"
+        )
+        command += ["-filter_complex", filter_complex, "-map", "[v]", "-map", "1:a:0"]
+    else:
+        command += ["-vf", subs, "-map", "0:v:0", "-map", "1:a:0"]
+
+    command += [
+        "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
+        "-c:a", "aac", "-b:a", "192k",
+        "-shortest", "-movflags", "+faststart",
         str(output_path),
     ]
     completed = subprocess.run(command, capture_output=True, text=True)
@@ -1176,16 +1141,29 @@ def retryable_publish_pipeline(topic: str, config: PipelineConfig, ffmpeg_binary
     segments = retry_call("Whisper transcription", lambda: transcribe_audio(voiceover_path, config))
     write_srt(segments, subtitles_path)
 
-    background_source = choose_background_clip(config.background_dir)
-    render_background(background_source, background_path, TARGET_SECONDS)
-
-    final_video_path = UPLOADS_DIR / f"final_short_{run_dir.name}.mp4"
-    render_final_short(background_path, voiceover_path, subtitles_path, final_video_path, ffmpeg_binary)
+    # Deterministic per-run seed so the background, thumbnail, and intro card
+    # share one look; pick one crypto background style for visual variety.
+    run_seed = int(re.sub(r"\D", "", run_dir.name) or "0") % (2 ** 31)
+    bg_style = choose_style(run_seed)
+    print(f"[pipeline] background style: {bg_style} (seed {run_seed})", file=sys.stderr)
 
     thumbnail_text = packaging.get("thumbnail_text", "")
+    headline = thumbnail_text or title
+
+    intro_card_path = run_dir / "intro_card.png"
+    make_intro_card(headline, intro_card_path, style=bg_style, seed=run_seed)
+
+    background_source = choose_background_clip(config.background_dir)
+    render_background(background_source, background_path, TARGET_SECONDS, style=bg_style, seed=run_seed)
+
+    final_video_path = UPLOADS_DIR / f"final_short_{run_dir.name}.mp4"
+    render_final_short(background_path, voiceover_path, subtitles_path, final_video_path, ffmpeg_binary,
+                       intro_card_path=intro_card_path)
+    cleanup_paths([intro_card_path])  # intermediate; the card is now baked into the MP4
+
     if thumbnail_text:
         thumbnail_path = UPLOADS_DIR / f"final_short_{run_dir.name}.jpg"
-        create_thumbnail(background_source, thumbnail_text, thumbnail_path)
+        create_thumbnail(background_source, thumbnail_text, thumbnail_path, style=bg_style, seed=run_seed)
 
     publish_at = schedule_publish_time(publish_delay_hours)
     payload = {
@@ -1225,6 +1203,7 @@ def retryable_publish_pipeline(topic: str, config: PipelineConfig, ffmpeg_binary
         "description": normalize_text(packaging.get("description", "")),
         "tags": normalize_tags(packaging.get("tags", [])),
         "thumbnailText": normalize_text(packaging.get("thumbnail_text", "")),
+        "backgroundStyle": bg_style,
         "finalVideoPath": relative_path(final_video_path),
         "thumbnailPath": relative_path(thumbnail_path) if thumbnail_path else None,
         "publishAt": publish_at,

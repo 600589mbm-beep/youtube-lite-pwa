@@ -1,24 +1,26 @@
 #!/usr/bin/env python3
-"""Copyright-safe animated background generation for crypto Shorts.
+"""Copyright-safe animated background + thumbnail generation for crypto Shorts.
 
-The daily pipeline historically fell back to a flat near-black ``ColorClip``
-whenever no stock footage existed in ``backgrounds/`` (which is the normal state
-on the VPS). That produced black videos. This module replaces that fallback with
-a fully generated, headless, download-free animated background:
+Replaces the old flat near-black ``ColorClip`` fallback with several generated,
+headless, download-free animated background styles, plus bold crypto-news card
+generation (used for the YouTube thumbnail JPG and an in-video intro frame).
 
-- a slowly shifting dark gradient (never black: enforced brightness floor)
-- floating "coin" glow particles drifting upward
-- a scrolling candlestick chart in the lower third
-- a subtle moving ticker band near the top
+Styles (1080x1920, vertical):
+- neon_candles   : neon candlestick grid on a faint chart grid
+- market_heatmap : grid of green/red coin tiles pulsing like a market heatmap
+- coin_vortex    : coin-glow particles orbiting a center vortex
+- ticker_wall    : multiple scrolling exchange ticker rows
+- liquid_gold    : flowing gold/blue liquid-finance gradient
 
-Everything is drawn with numpy + Pillow, so it works on a GPU-less VPS with no
-network access and no third-party assets. The center band is kept calm and the
-subtitle renderer already paints a black caption box, so captions stay readable.
+Everything is numpy + Pillow, works on a GPU-less VPS with no network. The center
+band stays calm and the subtitle renderer paints a black caption box, so captions
+remain readable.
 """
 
 from __future__ import annotations
 
 import random
+import re
 from pathlib import Path
 from typing import Optional, Tuple
 
@@ -29,9 +31,17 @@ from PIL import Image, ImageDraw, ImageFont
 # Brightness floor (mean luma 0-255). Anything below this is treated as "black".
 NEAR_BLACK_LUMA = 14.0
 
-_TICKER_SYMBOLS = ["BTC", "ETH", "SOL", "XRP", "BNB", "ADA", "DOGE", "AVAX", "LINK", "TON"]
+_TICKER_SYMBOLS = [
+    "BTC", "ETH", "SOL", "XRP", "BNB", "ADA", "DOGE", "AVAX", "LINK", "TON",
+    "DOT", "MATIC", "UNI", "LTC", "ATOM", "XLM", "ETC", "FIL", "APT", "ARB",
+    "OP", "INJ", "SUI", "SEI", "RNDR", "TIA", "NEAR", "HBAR", "ICP", "FTM",
+    "GRT", "AAVE", "MKR", "SAND", "MANA", "AXS", "ALGO", "XTZ", "EOS", "ZEC",
+]
 
 
+# --------------------------------------------------------------------------- #
+# shared drawing helpers
+# --------------------------------------------------------------------------- #
 def _load_font(size: int) -> ImageFont.FreeTypeFont:
     for candidate in (
         "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
@@ -40,6 +50,12 @@ def _load_font(size: int) -> ImageFont.FreeTypeFont:
         if Path(candidate).exists():
             return ImageFont.truetype(candidate, size=size)
     return ImageFont.load_default()
+
+
+def _vgrad(top, bottom, width: int, height: int) -> np.ndarray:
+    ramp = np.linspace(0.0, 1.0, height, dtype=np.float32)[:, None, None]
+    g = np.array(top, np.float32)[None, None, :] * (1.0 - ramp) + np.array(bottom, np.float32)[None, None, :] * ramp
+    return np.broadcast_to(g, (height, width, 3)).astype(np.float32).copy()
 
 
 def _glow_kernel(radius: float) -> np.ndarray:
@@ -53,7 +69,6 @@ def _glow_kernel(radius: float) -> np.ndarray:
 
 
 def _add_glow(frame: np.ndarray, cx: float, cy: float, kernel: np.ndarray, color: np.ndarray) -> None:
-    """Additively composite a radial glow kernel onto ``frame`` (clipped at edges)."""
     h, w = frame.shape[:2]
     r = kernel.shape[0] // 2
     x0, y0 = int(round(cx - r)), int(round(cy - r))
@@ -65,134 +80,305 @@ def _add_glow(frame: np.ndarray, cx: float, cy: float, kernel: np.ndarray, color
     frame[fy0:fy1, fx0:fx1, :] += k[..., None] * color
 
 
-def make_crypto_background(
-    duration_seconds: int,
-    size: Tuple[int, int],
-    fps: int = 30,
-    seed: Optional[int] = None,
-) -> VideoClip:
-    """Return a MoviePy clip with an animated, copyright-safe crypto background."""
-    width, height = size
-    rng = random.Random(seed)
-
-    # --- static gradient base (never black) ---------------------------------
-    # Deep navy at the top easing into a cool teal/purple at the bottom. The
-    # minimum channel values keep mean luma well above the near-black floor.
-    top = np.array([18, 24, 46], dtype=np.float32)
-    bottom = np.array([28, 18, 52], dtype=np.float32)
-    ramp = np.linspace(0.0, 1.0, height, dtype=np.float32)[:, None, None]
-    base = top[None, None, :] * (1.0 - ramp) + bottom[None, None, :] * ramp
-    base = np.broadcast_to(base, (height, width, 3)).astype(np.float32).copy()
-
-    # --- floating coin particles --------------------------------------------
-    n_particles = 26
-    particles = []
-    for _ in range(n_particles):
-        radius = rng.uniform(8, 26)
-        particles.append(
-            {
-                "x": rng.uniform(0, width),
-                "y0": rng.uniform(0, height),
-                "speed": rng.uniform(18, 70),      # px/sec upward
-                "drift": rng.uniform(10, 34),      # horizontal sway amplitude
-                "phase": rng.uniform(0, 2 * np.pi),
-                "kernel": _glow_kernel(radius),
-                "color": np.array(
-                    rng.choice([
-                        (90, 70, 18),   # gold-ish coin
-                        (20, 70, 80),   # teal
-                        (60, 30, 90),   # violet
-                    ]),
-                    dtype=np.float32,
-                ),
-            }
-        )
-
-    # --- scrolling candlestick chart (lower third) --------------------------
-    chart_top = int(height * 0.62)
-    chart_bottom = int(height * 0.86)
-    chart_h = chart_bottom - chart_top
-    candle_w = 26
-    candle_gap = 16
-    step = candle_w + candle_gap
-    n_candles = width // step + 4
+# --------------------------------------------------------------------------- #
+# per-style frame builders: builder(W, H, rng) -> (make_frame(t)->uint8, accent)
+# --------------------------------------------------------------------------- #
+def _build_neon_candles(W, H, rng):
+    base = _vgrad((16, 22, 44), (26, 16, 50), W, H)
+    grid = np.array([16, 26, 40], np.float32)
+    for gx in range(0, W, 90):
+        base[:, gx : gx + 1, :] += grid
+    for gy in range(0, H, 90):
+        base[gy : gy + 1, :, :] += grid
+    chart_top, chart_bot = int(H * 0.40), int(H * 0.74)
+    ch = chart_bot - chart_top
+    cw, gap = 30, 18
+    step = cw + gap
+    n = W // step + 4
     candles = []
-    level = 0.5
-    for _ in range(n_candles):
-        move = rng.uniform(-0.16, 0.16)
-        new_level = min(0.92, max(0.08, level + move))
-        candles.append({"open": level, "close": new_level, "wick": rng.uniform(0.04, 0.12)})
-        level = new_level
-    scroll_speed = step * 0.6  # px/sec leftward
+    lvl = 0.5
+    for _ in range(n):
+        nl = min(0.92, max(0.08, lvl + rng.uniform(-0.16, 0.16)))
+        candles.append((lvl, nl))
+        lvl = nl
+    speed = step * 0.5
+    accent = np.array([0, 230, 180], np.float32)
 
-    ticker_font = _load_font(34)
-    ticker_text = "   ".join(f"{s} {rng.choice('▲▼')}{rng.uniform(0.1,7.9):.1f}%" for s in _TICKER_SYMBOLS)
-
-    def make_frame(t: float) -> np.ndarray:
-        # Gentle global brightness pulse (keeps it alive without flicker).
-        pulse = 6.0 * np.sin(t * 0.7)
-        frame = base + pulse
-
-        # candlesticks
-        offset = (scroll_speed * t) % step
-        for i, candle in enumerate(candles):
-            cx = int(i * step - offset)
-            if cx + candle_w < 0 or cx > width:
+    def mf(t):
+        frame = base + 5.0 * np.sin(t * 0.6)
+        off = (speed * t) % step
+        for i, (o, c) in enumerate(candles):
+            cx = int(i * step - off)
+            if cx + cw < 0 or cx > W:
                 continue
-            o = chart_top + (1.0 - candle["open"]) * chart_h
-            c = chart_top + (1.0 - candle["close"]) * chart_h
-            bull = candle["close"] >= candle["open"]
-            color = np.array([40, 150, 95], np.float32) if bull else np.array([170, 60, 70], np.float32)
-            top_y, bot_y = int(min(o, c)), int(max(o, c))
-            bot_y = max(bot_y, top_y + 3)
-            x0 = max(0, cx)
-            x1 = min(width, cx + candle_w)
+            oy = chart_top + (1.0 - o) * ch
+            cy = chart_top + (1.0 - c) * ch
+            col = np.array([0, 220, 150], np.float32) if c >= o else np.array([235, 70, 90], np.float32)
+            ty, by = int(min(oy, cy)), max(int(max(oy, cy)), int(min(oy, cy)) + 4)
+            x0, x1 = max(0, cx), min(W, cx + cw)
             if x1 > x0:
-                frame[top_y:bot_y, x0:x1, :] += color * 0.85
-                # wick
-                wx = min(width - 1, max(0, cx + candle_w // 2))
-                wick_top = max(chart_top, int(top_y - candle["wick"] * chart_h))
-                wick_bot = min(chart_bottom, int(bot_y + candle["wick"] * chart_h))
-                frame[wick_top:wick_bot, wx : wx + 3, :] += color * 0.6
+                frame[max(0, ty - 6) : min(H, by + 6), x0:x1, :] += col * 0.15
+                frame[ty:by, x0:x1, :] += col * 0.9
+                wx = min(W - 1, max(0, cx + cw // 2))
+                frame[max(chart_top, ty - 30) : min(chart_bot, by + 30), wx : wx + 3, :] += col * 0.7
+        np.clip(frame, 0, 255, out=frame)
+        return frame.astype(np.uint8)
 
-        # floating particles
-        for p in particles:
-            y = (p["y0"] - p["speed"] * t) % (height + 80) - 40
-            x = p["x"] + p["drift"] * np.sin(t * 0.5 + p["phase"])
-            _add_glow(frame, x, y, p["kernel"], p["color"])
+    return mf, accent
 
+
+def _build_market_heatmap(W, H, rng):
+    base = _vgrad((14, 18, 34), (18, 14, 40), W, H)
+    cols, rows, pad = 5, 9, 10
+    cellw, cellh = W // cols, H // rows
+    tiles = []
+    idx = 0
+    for r in range(rows):
+        for c in range(cols):
+            tiles.append({"r": r, "c": c, "phase": rng.uniform(0, 6.28), "speed": rng.uniform(0.3, 0.9),
+                          "sym": _TICKER_SYMBOLS[idx % len(_TICKER_SYMBOLS)]})
+            idx += 1
+    font, font2 = _load_font(30), _load_font(22)
+    accent = np.array([60, 200, 120], np.float32)
+
+    def mf(t):
+        frame = base.copy()
+        vals = {}
+        for tile in tiles:
+            v = float(np.sin(t * tile["speed"] + tile["phase"]))
+            r, c = tile["r"], tile["c"]
+            y0, y1 = r * cellh + pad, (r + 1) * cellh - pad
+            x0, x1 = c * cellw + pad, (c + 1) * cellw - pad
+            if v >= 0:
+                col = np.array([20, 120, 70], np.float32) * v + np.array([24, 40, 46], np.float32)
+            else:
+                col = np.array([150, 45, 55], np.float32) * (-v) + np.array([44, 26, 32], np.float32)
+            frame[y0:y1, x0:x1, :] = col
+            vals[(r, c)] = v
         np.clip(frame, 0, 255, out=frame)
         img = Image.fromarray(frame.astype(np.uint8), "RGB")
-
-        # moving ticker band near the top
-        draw = ImageDraw.Draw(img, "RGBA")
-        band_y = int(height * 0.06)
-        draw.rectangle([0, band_y, width, band_y + 52], fill=(0, 0, 0, 120))
-        tw = draw.textlength(ticker_text, font=ticker_font)
-        tx = -((45.0 * t) % (tw + width))
-        draw.text((tx, band_y + 8), ticker_text, font=ticker_font, fill=(210, 220, 235, 230))
-        draw.text((tx + tw + width, band_y + 8), ticker_text, font=ticker_font, fill=(210, 220, 235, 230))
-
+        d = ImageDraw.Draw(img)
+        for tile in tiles:
+            r, c = tile["r"], tile["c"]
+            x0, y0 = c * cellw + pad + 14, r * cellh + pad + 10
+            d.text((x0, y0), tile["sym"], font=font, fill=(240, 245, 250))
+            d.text((x0, y0 + 34), f"{vals[(r, c)] * 8:+.1f}%", font=font2, fill=(225, 235, 240))
         return np.asarray(img)
 
+    return mf, accent
+
+
+def _build_coin_vortex(W, H, rng):
+    base = _vgrad((20, 16, 40), (30, 18, 52), W, H)
+    cx0, cy0 = W / 2.0, H / 2.0
+    palette = [(95, 72, 18), (20, 72, 82), (60, 30, 92), (90, 80, 30)]
+    parts = []
+    for _ in range(34):
+        parts.append({"R": rng.uniform(80, 820), "ang": rng.uniform(0, 6.28),
+                      "omega": rng.uniform(0.15, 0.5) * rng.choice([-1, 1]),
+                      "kernel": _glow_kernel(rng.uniform(8, 26)),
+                      "color": np.array(rng.choice(palette), np.float32),
+                      "asp": rng.uniform(0.5, 0.95)})
+    accent = np.array([240, 190, 60], np.float32)
+
+    def mf(t):
+        frame = base + 4.0 * np.sin(t * 0.5)
+        for p in parts:
+            a = p["ang"] + p["omega"] * t
+            x = cx0 + p["R"] * np.cos(a)
+            y = cy0 + p["R"] * p["asp"] * np.sin(a)
+            _add_glow(frame, x, y, p["kernel"], p["color"])
+        np.clip(frame, 0, 255, out=frame)
+        return frame.astype(np.uint8)
+
+    return mf, accent
+
+
+def _build_ticker_wall(W, H, rng):
+    base = _vgrad((12, 16, 32), (16, 14, 36), W, H)
+    rows = 9
+    rh = H // rows
+    font = _load_font(34)
+    bands = []
+    for r in range(rows):
+        items = "   ".join(f"{rng.choice(_TICKER_SYMBOLS)} {rng.choice('▲▼')}{rng.uniform(0.1, 9.9):.1f}%" for _ in range(8))
+        bands.append({"y": r * rh, "text": items + "    " + items,
+                      "speed": rng.uniform(35, 90) * rng.choice([-1, 1]),
+                      "tint": (0, 150, 95) if r % 2 == 0 else (160, 55, 70)})
+    accent = np.array([80, 160, 255], np.float32)
+
+    def mf(t):
+        img = Image.fromarray(base.astype(np.uint8), "RGB")
+        d = ImageDraw.Draw(img, "RGBA")
+        for b in bands:
+            d.rectangle([0, b["y"] + 4, W, b["y"] + rh - 4], fill=(*b["tint"], 55))
+            tw = d.textlength(b["text"], font=font)
+            if b["speed"] >= 0:
+                x = -((b["speed"] * t) % tw)
+            else:
+                x = -(tw - ((-b["speed"] * t) % tw))
+            ty = b["y"] + rh * 0.28
+            d.text((x, ty), b["text"], font=font, fill=(225, 235, 245, 235))
+            d.text((x + tw, ty), b["text"], font=font, fill=(225, 235, 245, 235))
+        return np.asarray(img.convert("RGB"))
+
+    return mf, accent
+
+
+def _build_liquid_gold(W, H, rng):
+    yy, xx = np.mgrid[0:H, 0:W]
+    xn = (xx / float(W)).astype(np.float32)
+    yn = (yy / float(H)).astype(np.float32)
+    gold = np.array([225, 165, 55], np.float32)
+    blue = np.array([30, 70, 150], np.float32)
+    p1, p2, p3 = rng.uniform(0, 6.28), rng.uniform(0, 6.28), rng.uniform(0, 6.28)
+    accent = np.array([240, 200, 90], np.float32)
+
+    def mf(t):
+        field = (np.sin(xn * 6 + t * 0.7 + p1) + np.sin(yn * 5 - t * 0.5 + p2) + np.sin((xn + yn) * 4 + t * 0.4 + p3)) / 3.0
+        m = ((field + 1.0) / 2.0)[..., None]
+        frame = gold[None, None, :] * m + blue[None, None, :] * (1.0 - m)
+        frame *= 0.7
+        np.clip(frame, 8, 255, out=frame)
+        return frame.astype(np.uint8)
+
+    return mf, accent
+
+
+_STYLE_BUILDERS = {
+    "neon_candles": _build_neon_candles,
+    "market_heatmap": _build_market_heatmap,
+    "coin_vortex": _build_coin_vortex,
+    "ticker_wall": _build_ticker_wall,
+    "liquid_gold": _build_liquid_gold,
+}
+STYLES = tuple(_STYLE_BUILDERS.keys())
+
+_STYLE_LABEL = {
+    "neon_candles": "MARKET",
+    "market_heatmap": "HEATMAP",
+    "coin_vortex": "CRYPTO",
+    "ticker_wall": "LIVE",
+    "liquid_gold": "ALERT",
+}
+
+
+def choose_style(seed: Optional[int] = None) -> str:
+    return random.Random(seed).choice(STYLES)
+
+
+def make_crypto_background(duration_seconds: int, size: Tuple[int, int], fps: int = 30,
+                           seed: Optional[int] = None, style: Optional[str] = None) -> VideoClip:
+    """Animated, copyright-safe crypto background. ``style`` is one of STYLES;
+    if omitted/unknown it is chosen (seeded) for you."""
+    width, height = size
+    if style not in _STYLE_BUILDERS:
+        style = choose_style(seed)
+    rng = random.Random(seed)
+    make_frame, _accent = _STYLE_BUILDERS[style](width, height, rng)
     return VideoClip(make_frame, duration=duration_seconds).set_fps(fps)
 
 
+# --------------------------------------------------------------------------- #
+# crypto-news cards (thumbnail JPG + in-video intro frame)
+# --------------------------------------------------------------------------- #
+def _style_backdrop(style: str, size: Tuple[int, int], seed: Optional[int] = None):
+    width, height = size
+    rng = random.Random(seed)
+    builder = _STYLE_BUILDERS.get(style, _build_neon_candles)
+    make_frame, accent = builder(width, height, rng)
+    return np.asarray(make_frame(0.5)), accent
+
+
+def _wrap_by_width(draw, text: str, font, max_width: int) -> str:
+    lines, current = [], []
+    for word in text.split():
+        candidate = " ".join(current + [word])
+        if current and draw.textlength(candidate, font=font) > max_width:
+            lines.append(" ".join(current))
+            current = [word]
+        else:
+            current.append(word)
+    if current:
+        lines.append(" ".join(current))
+    return "\n".join(lines)
+
+
+def _compose_card(size: Tuple[int, int], headline: str, style: str, seed: Optional[int] = None) -> Image.Image:
+    width, height = size
+    if style not in _STYLE_BUILDERS:
+        style = choose_style(seed)
+    # Strip stray markdown the LLM sometimes leaves in thumbnail_text (**, #, _, `).
+    headline = re.sub(r"[*_`#~]+", "", headline or "").strip() or "CRYPTO UPDATE"
+    frame, accent = _style_backdrop(style, size, seed)
+    acc = tuple(int(x) for x in accent)
+    img = Image.fromarray(frame, "RGB").convert("RGBA")
+    img = Image.alpha_composite(img, Image.new("RGBA", (width, height), (0, 0, 0, 130)))
+    draw = ImageDraw.Draw(img)
+
+    # badge pill (top-left)
+    badge_font = _load_font(int(height * 0.030) + 10)
+    label = _STYLE_LABEL.get(style, "CRYPTO")
+    bx, by = int(width * 0.06), int(height * 0.10)
+    bw = draw.textlength(label, font=badge_font)
+    draw.rounded_rectangle([bx, by, bx + bw + 44, by + badge_font.size + 24], radius=14, fill=(*acc, 235))
+    draw.text((bx + 22, by + 10), label, font=badge_font, fill=(10, 12, 20, 255))
+
+    # headline
+    hfont = _load_font(int(min(width, height) * 0.085))
+    htext = _wrap_by_width(draw, (headline or "CRYPTO UPDATE").upper(), hfont, int(width * 0.86))
+    bbox = draw.multiline_textbbox((0, 0), htext, font=hfont, spacing=14, align="left")
+    th = bbox[3] - bbox[1]
+    tx = int(width * 0.07)
+    ty = int(height * 0.55 - th / 2) if height > width else int(height * 0.5 - th / 2)
+    # accent underline bar above headline
+    draw.rectangle([tx, ty - 26, tx + int(width * 0.42), ty - 12], fill=(*acc, 255))
+    for dx, dy in ((6, 6), (3, 3)):
+        draw.multiline_text((tx + dx, ty + dy), htext, font=hfont, fill=(0, 0, 0, 235), spacing=14, align="left")
+    draw.multiline_text((tx, ty), htext, font=hfont, fill=(255, 255, 255, 255), spacing=14, align="left")
+
+    # frame border
+    draw.rounded_rectangle([int(width * 0.03), int(height * 0.03), int(width * 0.97), int(height * 0.97)],
+                           radius=28, outline=(*acc, 160), width=6)
+    return img.convert("RGB")
+
+
+def make_thumbnail(source_path, headline: str, output_path, style: Optional[str] = None,
+                   seed: Optional[int] = None) -> str:
+    """Bold 1280x720 crypto-news thumbnail. ``source_path`` is accepted for
+    backward compatibility but the card uses a generated style backdrop."""
+    style = style if style in _STYLE_BUILDERS else choose_style(seed)
+    card = _compose_card((1280, 720), headline, style, seed)
+    card.save(str(output_path), format="JPEG", quality=90, optimize=True)
+    return style
+
+
+def make_intro_card(headline: str, output_path, style: Optional[str] = None,
+                    seed: Optional[int] = None, size: Tuple[int, int] = (1080, 1920)) -> str:
+    """Vertical 1080x1920 crypto-news card to overlay briefly inside the video so
+    YouTube's auto-thumbnail picker has a strong frame to choose."""
+    style = style if style in _STYLE_BUILDERS else choose_style(seed)
+    card = _compose_card(size, headline, style, seed)
+    card.save(str(output_path), format="PNG")
+    return style
+
+
+# --------------------------------------------------------------------------- #
+# footage validation (unchanged behavior)
+# --------------------------------------------------------------------------- #
 def _clip_is_near_black(clip) -> bool:
-    """Sample a few frames; True if the clip is effectively black."""
     try:
         duration = float(clip.duration or 0)
     except Exception:
         return True
     if duration <= 0:
         return True
-    sample_times = [duration * frac for frac in (0.1, 0.5, 0.9)]
-    for ts in sample_times:
+    for frac in (0.1, 0.5, 0.9):
+        ts = duration * frac
         try:
             frame = clip.get_frame(min(ts, max(0.0, duration - 0.05)))
         except Exception:
             return True
-        # Rec. 601 luma
         luma = float(np.mean(frame[..., 0]) * 0.299 + np.mean(frame[..., 1]) * 0.587 + np.mean(frame[..., 2]) * 0.114)
         if luma >= NEAR_BLACK_LUMA:
             return False
@@ -200,12 +386,8 @@ def _clip_is_near_black(clip) -> bool:
 
 
 def load_footage_clip(source_path: Optional[Path], duration_seconds: int, size: Tuple[int, int]):
-    """Load and fit stock footage to the target size.
-
-    Returns a ready-to-use clip, or ``None`` when the footage is missing,
-    unreadable, zero-duration, or visually near-black — in which case the
-    caller should generate an animated background instead.
-    """
+    """Load and fit stock footage to the target size, or return ``None`` when the
+    footage is missing/unreadable/zero-duration/near-black."""
     if source_path is None:
         return None
     try:
@@ -216,21 +398,17 @@ def load_footage_clip(source_path: Optional[Path], duration_seconds: int, size: 
         if not clip.duration or clip.duration <= 0:
             clip.close()
             return None
-
         if clip.duration < duration_seconds:
             repeats = int(duration_seconds // clip.duration) + 1
             clip = concatenate_videoclips([clip.copy() for _ in range(repeats)])
-
         if clip.duration > duration_seconds:
             max_start = max(0.0, clip.duration - duration_seconds)
             start = random.uniform(0.0, max_start) if max_start > 0 else 0.0
             clip = clip.subclip(start, start + duration_seconds)
-
         clip = clip.resize(height=size[1])
         if clip.w < size[0]:
             clip = clip.resize(width=size[0])
         clip = clip.crop(x_center=clip.w / 2, y_center=clip.h / 2, width=size[0], height=size[1])
-
         if _clip_is_near_black(clip):
             clip.close()
             return None
