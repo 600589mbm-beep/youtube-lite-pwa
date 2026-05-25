@@ -7,3 +7,6 @@ data/*
 !data/.gitkeep
 uploads/*
 !uploads/.gitkeep
+.venv/
+__pycache__/
+*.pyc

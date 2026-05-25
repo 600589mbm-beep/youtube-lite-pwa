@@ -355,23 +355,34 @@ export function createYouTubeRouter({ baseDir, appUrl }) {
     }
 
     let thumbnailUploaded = false;
+    let thumbnailWarning = null;
     if (job.payload.thumbnailPath) {
       const thumbnailPath = job.payload.thumbnailPath;
-      await access(thumbnailPath);
-      await youtube.thumbnails.set({
-        videoId,
-        media: {
-          mimeType: detectThumbnailMimeType(thumbnailPath),
-          body: createReadStream(thumbnailPath),
-        },
-      });
-      thumbnailUploaded = true;
+      // A custom thumbnail requires a verified YouTube channel. If that (or any
+      // other thumbnail-only error) occurs, keep the successful video upload —
+      // YouTube auto-generates a thumbnail — and surface a non-fatal warning
+      // instead of failing the whole publish.
+      try {
+        await access(thumbnailPath);
+        await youtube.thumbnails.set({
+          videoId,
+          media: {
+            mimeType: detectThumbnailMimeType(thumbnailPath),
+            body: createReadStream(thumbnailPath),
+          },
+        });
+        thumbnailUploaded = true;
+      } catch (thumbError) {
+        thumbnailWarning = thumbError instanceof Error ? thumbError.message : 'Thumbnail upload failed.';
+        console.warn(`[youtube] Video ${videoId} uploaded, but custom thumbnail failed (non-fatal): ${thumbnailWarning}`);
+      }
     }
 
     return {
       videoId,
       youtubeUrl: `https://www.youtube.com/watch?v=${videoId}`,
       thumbnailUploaded,
+      thumbnailWarning,
       publishAt: job.payload.publishAt || null,
     };
   }
