@@ -44,6 +44,7 @@ from visual_background import (
     choose_style,
     load_footage_clip,
     make_crypto_background,
+    make_cta_card,
     make_intro_card,
     make_thumbnail,
 )
@@ -105,6 +106,7 @@ class PipelineConfig:
     default_category_id: str
     default_privacy_status: str
     ffmpeg_binary: str
+    shorts_per_day: int = 1
 
 
 def main() -> int:
@@ -257,6 +259,10 @@ def load_config() -> PipelineConfig:
         default_category_id=os.getenv("PIPELINE_CATEGORY_ID", os.getenv("YOUTUBE_DEFAULT_CATEGORY_ID", "22")).strip() or "22",
         default_privacy_status=normalize_privacy_status(os.getenv("PIPELINE_PRIVACY_STATUS", "private")),
         ffmpeg_binary=ffmpeg_binary,
+        # Posting cadence knob. Read but NOT auto-acted-on: the cron still fires
+        # once/day. To run 2/day, add a guarded second cron entry (see
+        # docs/CRYPTO_FORMAT.md); the flock guard prevents overlapping renders.
+        shorts_per_day=max(1, int(os.getenv("SHORTS_PER_DAY", os.getenv("POSTING_FREQUENCY_DAILY", "1")) or 1)),
     )
 
 
@@ -423,6 +429,101 @@ def write_srt(segments: Iterable[Dict[str, Any]], output_path: Path) -> None:
     output_path.write_text("\n".join(blocks), encoding="utf-8")
 
 
+# --- content pillars (rotated per run) -------------------------------------- #
+CONTENT_PILLARS = {
+    "alpha": (
+        "PILLAR: Alpha / watchlist. Analytical and exciting breakdown of what is "
+        "moving and WHY. Absolutely no financial advice — never tell the viewer to "
+        "buy, sell, or hold; frame everything as analysis and what to watch."
+    ),
+    "predictive": (
+        "PILLAR: Predictive markets & hard data. Talk in probabilities and odds "
+        "(Polymarket-style event/regulatory probabilities, market-implied odds). "
+        "Do NOT fabricate exact percentages; speak in directional probability "
+        "language. Analytical only, no financial advice."
+    ),
+    "drama": (
+        "PILLAR: Crypto drama / rekt story. Mini-documentary beat on a trader win or "
+        "loss, a hack, an exploit, or a liquidation cascade. High tension, narrative "
+        "arc. Report the story; no financial advice."
+    ),
+}
+
+
+def choose_pillar(seed: Optional[int] = None) -> str:
+    return random.Random((seed or 0) ^ 0x5DEECE66).choice(list(CONTENT_PILLARS))
+
+
+# --- ASS captions with sentiment keyword highlighting ----------------------- #
+_KW_GREEN = {"PUMP", "PUMPS", "100X", "10X", "50X", "20X", "MOON", "RALLY", "BULLISH",
+             "ETF", "ETFS", "ATH", "SURGE", "BREAKOUT", "ADOPTION", "GREEN", "MOONING"}
+_KW_RED = {"DUMP", "DUMPED", "CRASH", "CRASHED", "REKT", "LIQUIDATION", "LIQUIDATIONS",
+           "LIQUIDATED", "BEARISH", "RUG", "HACK", "HACKED", "EXPLOIT", "COLLAPSE",
+           "PLUNGE", "SELLOFF", "RED", "DRAINED"}
+_KW_YELLOW = {"WHALE", "WHALES", "MILLION", "MILLIONS", "BILLION", "BILLIONS", "ALERT",
+              "BREAKING", "MASSIVE", "HUGE"}
+_ASS_GREEN, _ASS_RED, _ASS_YELLOW, _ASS_WHITE = "&H78FF28&", "&H463CFF&", "&H28DCFF&", "&HFFFFFF&"
+
+
+def _ass_timestamp(seconds: float) -> str:
+    cs = int(round(max(0.0, seconds) * 100))
+    h, rem = divmod(cs, 360000)
+    m, rem = divmod(rem, 6000)
+    s, c = divmod(rem, 100)
+    return f"{h:d}:{m:02d}:{s:02d}.{c:02d}"
+
+
+def _highlight_ass(text: str) -> str:
+    out: List[str] = []
+    for token in re.split(r"(\s+)", text):
+        if not token.strip():
+            out.append(token)
+            continue
+        key = re.sub(r"[^A-Z0-9]", "", token.upper())
+        color = _ASS_GREEN if key in _KW_GREEN else _ASS_RED if key in _KW_RED else _ASS_YELLOW if key in _KW_YELLOW else None
+        out.append(f"{{\\c{color}}}{token}{{\\c{_ASS_WHITE}}}" if color else token)
+    return "".join(out)
+
+
+def write_ass(segments: Iterable[Dict[str, Any]], output_path: Path) -> None:
+    """Burned-in ASS captions: big bold high-contrast box, with trigger keywords
+    recolored by sentiment (green bullish / red bearish / yellow attention)."""
+    header = (
+        "[Script Info]\nScriptType: v4.00+\nPlayResX: 1080\nPlayResY: 1920\nWrapStyle: 2\nScaledBorderAndShadow: yes\n\n"
+        "[V4+ Styles]\n"
+        "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, "
+        "Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, "
+        "Alignment, MarginL, MarginR, MarginV, Encoding\n"
+        "Style: Default,DejaVu Sans,66,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,"
+        "-1,0,0,0,100,100,0,0,3,3,1,5,70,70,150,1\n\n"
+        "[Events]\n"
+        "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
+    )
+    lines = [header]
+    for seg in segments:
+        start = _ass_timestamp(float(seg.get("start", 0.0)))
+        end = _ass_timestamp(float(seg.get("end", 0.0)))
+        text = wrap_caption(str(seg.get("text", "")))
+        text = _highlight_ass(text).replace("\n", "\\N")
+        lines.append(f"Dialogue: 0,{start},{end},Default,,0,0,0,,{text}\n")
+    output_path.write_text("".join(lines), encoding="utf-8")
+
+
+def _probe_seconds(path: Path, ffmpeg_binary: str) -> float:
+    probe = str(Path(ffmpeg_binary).with_name("ffprobe"))
+    if not Path(probe).exists():
+        probe = "ffprobe"
+    try:
+        out = subprocess.run(
+            [probe, "-v", "error", "-show_entries", "format=duration",
+             "-of", "default=noprint_wrappers=1:nokey=1", str(path)],
+            capture_output=True, text=True,
+        )
+        return float(out.stdout.strip())
+    except Exception:
+        return 0.0
+
+
 def render_background(source_path: Optional[Path], output_path: Path, duration_seconds: int,
                       style: Optional[str] = None, seed: Optional[int] = None) -> None:
     clip = build_background_clip(source_path, duration_seconds, style=style, seed=seed)
@@ -459,22 +560,41 @@ def create_thumbnail(source_path: Optional[Path], thumbnail_text: str, output_pa
 
 
 def render_final_short(background_path: Path, audio_path: Path, subtitles_path: Path, output_path: Path,
-                       ffmpeg_binary: str, intro_card_path: Optional[Path] = None) -> None:
+                       ffmpeg_binary: str, intro_card_path: Optional[Path] = None,
+                       cta_card_path: Optional[Path] = None) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    subs = f"subtitles={escape_ffmpeg_path(subtitles_path)}:force_style='{subtitle_style()}'"
-    command = [ffmpeg_binary, "-y", "-i", str(background_path), "-i", str(audio_path)]
+    # ASS captions (keyword highlighting) when given a .ass file; else legacy SRT.
+    if Path(subtitles_path).suffix.lower() == ".ass":
+        subs = f"ass={escape_ffmpeg_path(subtitles_path)}"
+    else:
+        subs = f"subtitles={escape_ffmpeg_path(subtitles_path)}:force_style='{subtitle_style()}'"
 
+    command = [ffmpeg_binary, "-y", "-i", str(background_path), "-i", str(audio_path)]
+    overlays = []  # (input_index, enable_expr)
+    idx = 2
     if intro_card_path is not None and Path(intro_card_path).exists():
-        # Overlay a full-screen crypto-news card for ~0.8s near t=1.0s. This
-        # changes no timestamps/audio (subtitles stay in sync underneath) and
-        # gives YouTube's auto-thumbnail picker a strong frame to choose.
+        # Full-screen crypto-news card ~0.8s near t=1.0s -> a strong frame for
+        # YouTube's auto-thumbnail picker. No timestamp/audio change (captions
+        # stay in sync underneath).
         command += ["-i", str(intro_card_path)]
-        filter_complex = (
-            f"[0:v]{subs}[v0];"
-            "[2:v]format=rgba[card];"
-            "[v0][card]overlay=0:0:enable='between(t,1.0,1.8)'[v]"
-        )
-        command += ["-filter_complex", filter_complex, "-map", "[v]", "-map", "1:a:0"]
+        overlays.append((idx, "between(t,1.0,1.8)"))
+        idx += 1
+    if cta_card_path is not None and Path(cta_card_path).exists():
+        dur = _probe_seconds(audio_path, ffmpeg_binary)
+        if dur > 0:
+            start = max(0.5, dur - 2.6)  # CTA banner for the last ~2.6s, before the loop restarts
+            command += ["-i", str(cta_card_path)]
+            overlays.append((idx, f"gte(t,{start:.2f})"))
+            idx += 1
+
+    if overlays:
+        parts = [f"[0:v]{subs}[v0]"]
+        cur, n = "v0", 1
+        for inp, expr in overlays:
+            parts.append(f"[{inp}:v]format=rgba[c{n}]")
+            parts.append(f"[{cur}][c{n}]overlay=0:0:enable='{expr}'[v{n}]")
+            cur, n = f"v{n}", n + 1
+        command += ["-filter_complex", ";".join(parts), "-map", f"[{cur}]", "-map", "1:a:0"]
     else:
         command += ["-vf", subs, "-map", "0:v:0", "-map", "1:a:0"]
 
@@ -722,25 +842,39 @@ def wrap_text_for_width(text: str, font: ImageFont.ImageFont, max_width: int) ->
     return "\n".join(lines)
 
 
-def generate_spoken_script(topic: str, config: PipelineConfig) -> str:
+def generate_spoken_script(topic: str, config: PipelineConfig, pillar: Optional[str] = None) -> str:
     client = OpenAI(api_key=config.openrouter_api_key, base_url=config.openrouter_base_url, timeout=120)
+    pillar_text = CONTENT_PILLARS.get(pillar or "", "")
     response = client.chat.completions.create(
         model=config.openrouter_model,
         messages=[
             {
                 "role": "system",
                 "content": (
-                    "You write punchy YouTube Shorts narration about crypto and market news. "
-                    "Return only the spoken text. No title, no bullets, no markdown, and no stage directions. "
-                    "Hook the viewer in the first 3 seconds and keep the response around 95 to 115 words."
+                    "You write narration for a FACELESS, AI-driven crypto Shorts brand — fast, "
+                    "punchy, Alex-Hormozi-energy. Return ONLY the spoken text: no title, no bullets, "
+                    "no markdown, no stage directions, no emojis.\n"
+                    "RULES:\n"
+                    "1) 3-SECOND HOOK: open on immediate tension or a bold claim. NEVER a generic intro "
+                    "like 'Today we will' or 'In this video'.\n"
+                    "2) AGGRESSIVE PACING: short, declarative sentences. A new idea or beat every ~1.5-2 "
+                    "seconds. No filler, no breathing room.\n"
+                    "3) Naturally lean on punchy trigger words where true to the story (PUMP, DUMP, WHALES, "
+                    "CRASH, ETF, LIQUIDATION, REKT, 100X, MILLION).\n"
+                    "4) SEAMLESS LOOP: the final sentence must flow straight back into the first sentence so "
+                    "the Short loops cleanly. Do not end with 'thanks for watching' or a sign-off.\n"
+                    "5) NO FINANCIAL ADVICE: never tell anyone to buy, sell, hold, or invest, and give no "
+                    "price targets as recommendations. Stay analytical and exciting.\n"
+                    "Keep it around 95 to 115 words (~45 seconds)."
+                    + (f"\n{pillar_text}" if pillar_text else "")
                 ),
             },
             {
                 "role": "user",
-                "content": f"Topic: {topic}\n\nWrite the spoken text for one 45-second YouTube Short.",
+                "content": f"Topic: {topic}\n\nWrite the looping spoken text for one ~45-second crypto Short.",
             },
         ],
-        temperature=0.7,
+        temperature=0.8,
         extra_headers={
             "HTTP-Referer": config.http_referer,
             "X-Title": config.openrouter_title,
@@ -757,10 +891,14 @@ def generate_packaging(topic: str, spoken_script: str, config: PipelineConfig) -
             {
                 "role": "system",
                 "content": (
-                    "You package YouTube Shorts for clicks and search. Return strict JSON only with keys: "
-                    "title, description, tags, thumbnail_text. title must be under 60 characters and include #Shorts. "
-                    "description must be exactly two sentences with natural SEO keywords. tags must be an array of 8 to 15 strings. "
-                    "thumbnail_text must be 2 to 5 words, bold, and punchy."
+                    "You package faceless crypto YouTube Shorts for clicks and search. Return strict JSON "
+                    "only with keys: title, description, tags, thumbnail_text. "
+                    "title: under 60 characters, include #Shorts, high-curiosity/Hormozi-style, no clickbait lies, "
+                    "and NO financial advice or buy/sell calls. "
+                    "description: exactly two sentences with natural SEO keywords, no financial advice. "
+                    "tags: an array of 8 to 15 strings. "
+                    "thumbnail_text: 2 to 4 BOLD punchy words (plain text, no markdown/asterisks), ideally using a "
+                    "trigger word like PUMP, DUMP, WHALES, CRASH, ETF, REKT, 100X, or MILLION when it fits."
                 ),
             },
             {
@@ -893,22 +1031,41 @@ def create_thumbnail(source_path: Optional[Path], thumbnail_text: str, output_pa
 
 
 def render_final_short(background_path: Path, audio_path: Path, subtitles_path: Path, output_path: Path,
-                       ffmpeg_binary: str, intro_card_path: Optional[Path] = None) -> None:
+                       ffmpeg_binary: str, intro_card_path: Optional[Path] = None,
+                       cta_card_path: Optional[Path] = None) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    subs = f"subtitles={escape_ffmpeg_path(subtitles_path)}:force_style='{subtitle_style()}'"
-    command = [ffmpeg_binary, "-y", "-i", str(background_path), "-i", str(audio_path)]
+    # ASS captions (keyword highlighting) when given a .ass file; else legacy SRT.
+    if Path(subtitles_path).suffix.lower() == ".ass":
+        subs = f"ass={escape_ffmpeg_path(subtitles_path)}"
+    else:
+        subs = f"subtitles={escape_ffmpeg_path(subtitles_path)}:force_style='{subtitle_style()}'"
 
+    command = [ffmpeg_binary, "-y", "-i", str(background_path), "-i", str(audio_path)]
+    overlays = []  # (input_index, enable_expr)
+    idx = 2
     if intro_card_path is not None and Path(intro_card_path).exists():
-        # Overlay a full-screen crypto-news card for ~0.8s near t=1.0s. This
-        # changes no timestamps/audio (subtitles stay in sync underneath) and
-        # gives YouTube's auto-thumbnail picker a strong frame to choose.
+        # Full-screen crypto-news card ~0.8s near t=1.0s -> a strong frame for
+        # YouTube's auto-thumbnail picker. No timestamp/audio change (captions
+        # stay in sync underneath).
         command += ["-i", str(intro_card_path)]
-        filter_complex = (
-            f"[0:v]{subs}[v0];"
-            "[2:v]format=rgba[card];"
-            "[v0][card]overlay=0:0:enable='between(t,1.0,1.8)'[v]"
-        )
-        command += ["-filter_complex", filter_complex, "-map", "[v]", "-map", "1:a:0"]
+        overlays.append((idx, "between(t,1.0,1.8)"))
+        idx += 1
+    if cta_card_path is not None and Path(cta_card_path).exists():
+        dur = _probe_seconds(audio_path, ffmpeg_binary)
+        if dur > 0:
+            start = max(0.5, dur - 2.6)  # CTA banner for the last ~2.6s, before the loop restarts
+            command += ["-i", str(cta_card_path)]
+            overlays.append((idx, f"gte(t,{start:.2f})"))
+            idx += 1
+
+    if overlays:
+        parts = [f"[0:v]{subs}[v0]"]
+        cur, n = "v0", 1
+        for inp, expr in overlays:
+            parts.append(f"[{inp}:v]format=rgba[c{n}]")
+            parts.append(f"[{cur}][c{n}]overlay=0:0:enable='{expr}'[v{n}]")
+            cur, n = f"v{n}", n + 1
+        command += ["-filter_complex", ";".join(parts), "-map", f"[{cur}]", "-map", "1:a:0"]
     else:
         command += ["-vf", subs, "-map", "0:v:0", "-map", "1:a:0"]
 
@@ -1125,7 +1282,14 @@ def run_pipeline() -> int:
 
 
 def retryable_publish_pipeline(topic: str, config: PipelineConfig, ffmpeg_binary: str, run_dir: Path, publish_delay_hours: int, dry_run: bool) -> Dict[str, Any]:
-    script = retry_call("OpenRouter script generation", lambda: generate_spoken_script(topic, config))
+    # Deterministic per-run seed so pillar, background, thumbnail, intro + CTA
+    # cards all share one look. Pillar + style are picked before generation.
+    run_seed = int(re.sub(r"\D", "", run_dir.name) or "0") % (2 ** 31)
+    pillar = choose_pillar(run_seed)
+    bg_style = choose_style(run_seed)
+    print(f"[pipeline] content pillar: {pillar} | background style: {bg_style} (seed {run_seed})", file=sys.stderr)
+
+    script = retry_call("OpenRouter script generation", lambda: generate_spoken_script(topic, config, pillar))
     packaging = retry_call("OpenRouter packaging generation", lambda: generate_packaging(topic, script, config))
 
     title = sanitize_title(packaging.get("title", ""), 60)
@@ -1133,33 +1297,29 @@ def retryable_publish_pipeline(topic: str, config: PipelineConfig, ffmpeg_binary
         title = ensure_short_tag(title, 60)
 
     voiceover_path = run_dir / "voiceover.mp3"
-    subtitles_path = run_dir / "subtitles.srt"
+    subtitles_path = run_dir / "subtitles.ass"
     background_path = run_dir / "background.mp4"
     thumbnail_path: Optional[Path] = None
 
     retry_call("Voicebox voiceover", lambda: synthesize_voiceover(script, voiceover_path, config))
     segments = retry_call("Whisper transcription", lambda: transcribe_audio(voiceover_path, config))
-    write_srt(segments, subtitles_path)
-
-    # Deterministic per-run seed so the background, thumbnail, and intro card
-    # share one look; pick one crypto background style for visual variety.
-    run_seed = int(re.sub(r"\D", "", run_dir.name) or "0") % (2 ** 31)
-    bg_style = choose_style(run_seed)
-    print(f"[pipeline] background style: {bg_style} (seed {run_seed})", file=sys.stderr)
+    write_ass(segments, subtitles_path)
 
     thumbnail_text = packaging.get("thumbnail_text", "")
     headline = thumbnail_text or title
 
     intro_card_path = run_dir / "intro_card.png"
     make_intro_card(headline, intro_card_path, style=bg_style, seed=run_seed)
+    cta_card_path = run_dir / "cta_card.png"
+    make_cta_card(cta_card_path, style=bg_style, seed=run_seed)
 
     background_source = choose_background_clip(config.background_dir)
     render_background(background_source, background_path, TARGET_SECONDS, style=bg_style, seed=run_seed)
 
     final_video_path = UPLOADS_DIR / f"final_short_{run_dir.name}.mp4"
     render_final_short(background_path, voiceover_path, subtitles_path, final_video_path, ffmpeg_binary,
-                       intro_card_path=intro_card_path)
-    cleanup_paths([intro_card_path])  # intermediate; the card is now baked into the MP4
+                       intro_card_path=intro_card_path, cta_card_path=cta_card_path)
+    cleanup_paths([intro_card_path, cta_card_path])  # intermediates; baked into the MP4
 
     if thumbnail_text:
         thumbnail_path = UPLOADS_DIR / f"final_short_{run_dir.name}.jpg"
@@ -1204,6 +1364,7 @@ def retryable_publish_pipeline(topic: str, config: PipelineConfig, ffmpeg_binary
         "tags": normalize_tags(packaging.get("tags", [])),
         "thumbnailText": normalize_text(packaging.get("thumbnail_text", "")),
         "backgroundStyle": bg_style,
+        "contentPillar": pillar,
         "finalVideoPath": relative_path(final_video_path),
         "thumbnailPath": relative_path(thumbnail_path) if thumbnail_path else None,
         "publishAt": publish_at,

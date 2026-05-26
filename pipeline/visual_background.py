@@ -262,6 +262,77 @@ _STYLE_LABEL = {
     "liquid_gold": "ALERT",
 }
 
+_STYLE_ACCENT = {
+    "neon_candles": (0, 230, 180),
+    "market_heatmap": (60, 200, 120),
+    "coin_vortex": (240, 190, 60),
+    "ticker_wall": (80, 160, 255),
+    "liquid_gold": (240, 200, 90),
+}
+
+# Aggressive pacing: a fresh data widget (and a brightness "punch") every beat.
+_BEAT_INTERVAL = 1.7
+_WIDGET_TYPES = ("barbox", "coderow", "statcard", "heatmini")
+_STAT_LABELS = ["LIQUIDATIONS", "24H VOL", "OPEN INT", "FUNDING", "LONGS", "SHORTS", "NET FLOW", "WHALE TX"]
+_GREEN, _RED = (60, 210, 120), (225, 70, 85)
+
+
+def _plan_beats(width: int, height: int, n_beats: int, seed: Optional[int]):
+    """Deterministically pre-plan one data widget per beat. Anchors stay in the
+    top band and lower corners so they never collide with the center captions."""
+    rng = random.Random((seed or 0) ^ 0x9E3779B9)
+    anchors = [
+        (int(width * 0.05), int(height * 0.12)), (int(width * 0.52), int(height * 0.12)),
+        (int(width * 0.05), int(height * 0.23)), (int(width * 0.52), int(height * 0.23)),
+        (int(width * 0.06), int(height * 0.70)), (int(width * 0.52), int(height * 0.70)),
+    ]
+    beats = []
+    for _ in range(max(1, n_beats)):
+        beats.append({
+            "type": rng.choice(_WIDGET_TYPES),
+            "anchor": rng.choice(anchors),
+            "vals": [rng.uniform(-1, 1) for _ in range(6)],
+            "label": rng.choice(_STAT_LABELS),
+            "sym": rng.choice(_TICKER_SYMBOLS),
+            "amt": rng.uniform(0.2, 9.9),
+            "up": rng.random() > 0.5,
+        })
+    return beats
+
+
+def _draw_widget(draw, spec, alpha: float, accent, font_s, font_m) -> None:
+    a = int(max(0.0, min(1.0, alpha)) * 255)
+    ax, ay = spec["anchor"]
+    acc = tuple(int(x) for x in accent)
+    up = spec["up"]
+    if spec["type"] == "barbox":
+        w, h = 230, 120
+        draw.rounded_rectangle([ax, ay, ax + w, ay + h], radius=10, fill=(10, 14, 26, int(a * 0.7)), outline=(*acc, a), width=2)
+        bw = 24
+        for i, v in enumerate(spec["vals"]):
+            bh = int(abs(v) * (h - 30)) + 6
+            x0 = ax + 14 + i * 35
+            col = _GREEN if v >= 0 else _RED
+            draw.rectangle([x0, ay + h - 12 - bh, x0 + bw, ay + h - 12], fill=(*col, a))
+    elif spec["type"] == "coderow":
+        rows = [f"EXEC {spec['sym']}/USDT", f"{'BUY' if up else 'SELL'} {spec['amt']:.2f}", f"px {spec['vals'][0] * 100 + 100:.2f}"]
+        for i, ln in enumerate(rows):
+            draw.text((ax, ay + i * 32), ln, font=font_s, fill=((120, 255, 160, a) if up else (255, 140, 150, a)))
+    elif spec["type"] == "statcard":
+        w, h = 250, 96
+        draw.rounded_rectangle([ax, ay, ax + w, ay + h], radius=12, fill=(10, 14, 26, int(a * 0.72)), outline=(*acc, a), width=2)
+        draw.text((ax + 14, ay + 10), spec["label"], font=font_s, fill=(210, 220, 235, a))
+        col = _GREEN if up else _RED
+        draw.text((ax + 14, ay + 42), f"{'+' if up else '-'}${spec['amt']:.1f}M", font=font_m, fill=(*col, a))
+    else:  # heatmini
+        cols, rows, cw = 5, 3, 38
+        for r in range(rows):
+            for c in range(cols):
+                v = spec["vals"][(r * cols + c) % 6]
+                col = _GREEN if v >= 0 else _RED
+                x0, y0 = ax + c * cw, ay + r * cw
+                draw.rectangle([x0, y0, x0 + cw - 4, y0 + cw - 4], fill=(col[0], col[1], col[2], int(a * (0.4 + 0.5 * abs(v)))))
+
 
 def choose_style(seed: Optional[int] = None) -> str:
     return random.Random(seed).choice(STYLES)
@@ -275,8 +346,46 @@ def make_crypto_background(duration_seconds: int, size: Tuple[int, int], fps: in
     if style not in _STYLE_BUILDERS:
         style = choose_style(seed)
     rng = random.Random(seed)
-    make_frame, _accent = _STYLE_BUILDERS[style](width, height, rng)
-    return VideoClip(make_frame, duration=duration_seconds).set_fps(fps)
+    base_frame, accent = _STYLE_BUILDERS[style](width, height, rng)
+
+    beats = _plan_beats(width, height, int(duration_seconds / _BEAT_INTERVAL) + 2, seed)
+    font_s, font_m = _load_font(26), _load_font(40)
+
+    def beat_frame(t):
+        arr = base_frame(t)
+        b = int(t / _BEAT_INTERVAL)
+        local = t - b * _BEAT_INTERVAL
+        # brightness "punch" at the start of each beat -> a felt motion beat
+        if local < 0.12:
+            arr = np.clip(arr.astype(np.float32) * (1.0 + 0.06 * (1.0 - local / 0.12)), 0, 255).astype(np.uint8)
+        img = Image.fromarray(arr, "RGB").convert("RGBA")
+        overlay = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(overlay)
+        if b < len(beats):
+            _draw_widget(draw, beats[b], min(1.0, local / 0.25), accent, font_s, font_m)
+        return np.asarray(Image.alpha_composite(img, overlay).convert("RGB"))
+
+    return VideoClip(beat_frame, duration=duration_seconds).set_fps(fps)
+
+
+def make_cta_card(output_path, style: Optional[str] = None, seed: Optional[int] = None,
+                  size: Tuple[int, int] = (1080, 1920)) -> str:
+    """Transparent overlay with a bottom 'Subscribe for daily crypto alpha' banner,
+    shown for the last ~2.5s right before the loop restarts."""
+    width, height = size
+    style = style if style in _STYLE_BUILDERS else choose_style(seed)
+    acc = _STYLE_ACCENT.get(style, (0, 230, 180))
+    img = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    by, bh, mx = int(height * 0.80), int(height * 0.10), int(width * 0.08)
+    draw.rounded_rectangle([mx, by, width - mx, by + bh], radius=26, fill=(10, 12, 22, 235), outline=(*acc, 255), width=6)
+    f1, f2 = _load_font(int(bh * 0.40)), _load_font(int(bh * 0.24))
+    t1 = "▶  SUBSCRIBE"
+    draw.text(((width - draw.textlength(t1, font=f1)) / 2, by + int(bh * 0.12)), t1, font=f1, fill=(*acc, 255))
+    t2 = "DAILY CRYPTO ALPHA"
+    draw.text(((width - draw.textlength(t2, font=f2)) / 2, by + int(bh * 0.60)), t2, font=f2, fill=(245, 248, 252, 255))
+    img.save(str(output_path), format="PNG")
+    return style
 
 
 # --------------------------------------------------------------------------- #
