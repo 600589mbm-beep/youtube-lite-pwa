@@ -42,6 +42,7 @@ class RenderedVideo:
     category_id: str = "22"
     publish_at: Optional[str] = None
     made_for_kids: bool = False  # COPPA: set on upload for kids content
+    profile: Optional[str] = None  # channel profile (e.g. "kids"); None -> Node default (crypto)
 
     def to_publish_payload(self) -> dict:
         payload = {
@@ -54,7 +55,9 @@ class RenderedVideo:
             "categoryId": self.category_id,
             "publishAt": self.publish_at,
         }
-        # Forward-compat: Node side must learn to honor this for kids uploads.
+        # Node honors these for multi-channel + COPPA (youtube-publishing.js).
+        if self.profile:
+            payload["profile"] = self.profile
         if self.made_for_kids:
             payload["madeForKids"] = True
         return payload

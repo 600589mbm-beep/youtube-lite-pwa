@@ -2,7 +2,7 @@ import express from 'express';
 import { google } from 'googleapis';
 import crypto from 'node:crypto';
 import { createReadStream } from 'node:fs';
-import { access, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { access, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 const YOUTUBE_SCOPE = 'https://www.googleapis.com/auth/youtube.upload';
@@ -25,6 +25,22 @@ export function createYouTubeRouter({ baseDir, appUrl }) {
     defaultCategoryId: process.env.YOUTUBE_DEFAULT_CATEGORY_ID?.trim() || '22',
   };
 
+  // --- multi-channel profiles ------------------------------------------------
+  // Each YouTube channel gets its own token file: data/youtube-auth.<profile>.json
+  // (e.g. crypto, kids). The default profile is backward-compatible with the
+  // legacy data/youtube-auth.json so the existing crypto channel keeps working.
+  const DEFAULT_CHANNEL_PROFILE = (process.env.YOUTUBE_CHANNEL_PROFILE || process.env.YOUTUBE_AUTH_PROFILE || 'crypto')
+    .trim().toLowerCase() || 'crypto';
+
+  function sanitizeProfile(value) {
+    const s = String(value || '').trim().toLowerCase();
+    return /^[a-z0-9_-]{1,32}$/.test(s) ? s : DEFAULT_CHANNEL_PROFILE;
+  }
+
+  function tokenPathForProfile(profile) {
+    return path.join(dataDir, `youtube-auth.${sanitizeProfile(profile)}.json`);
+  }
+
   const stateCache = new Map();
   let queueBusy = false;
   let queueAgain = false;
@@ -40,10 +56,12 @@ export function createYouTubeRouter({ baseDir, appUrl }) {
       }
 
       const returnTo = normalizeReturnTo(req.query.returnTo);
+      const profile = sanitizeProfile(req.query.profile);
       const state = crypto.randomUUID();
       stateCache.set(state, {
         createdAt: Date.now(),
         returnTo,
+        profile,
       });
       cleanupStateCache();
 
@@ -81,10 +99,11 @@ export function createYouTubeRouter({ baseDir, appUrl }) {
         return res.redirect('/youtube?auth=invalid_state');
       }
 
+      const profile = sanitizeProfile(stateEntry.profile);
       const oauth2Client = createOauthClient();
       const tokenResponse = await oauth2Client.getToken(code);
       const receivedTokens = sanitizeTokens(tokenResponse.tokens || {});
-      const existingBundle = await loadTokenBundle();
+      const existingBundle = await loadTokenBundle(profile);
       const mergedTokens = sanitizeTokens({
         ...(existingBundle?.tokens || {}),
         ...receivedTokens,
@@ -98,7 +117,7 @@ export function createYouTubeRouter({ baseDir, appUrl }) {
         return res.redirect('/youtube?auth=missing_refresh_token');
       }
 
-      await saveTokenBundle(mergedTokens);
+      await saveTokenBundle(profile, mergedTokens);
       kickQueueProcessor();
 
       const separator = stateEntry.returnTo.includes('?') ? '&' : '?';
@@ -108,9 +127,10 @@ export function createYouTubeRouter({ baseDir, appUrl }) {
     }
   });
 
-  router.get('/api/youtube/status', async function (_req, res) {
+  router.get('/api/youtube/status', async function (req, res) {
     try {
-      const [tokenBundle, queue] = await Promise.all([loadTokenBundle(), loadQueue()]);
+      const profile = sanitizeProfile(req.query.profile);
+      const [tokenBundle, queue] = await Promise.all([loadTokenBundle(profile), loadQueue()]);
       const queued = queue.filter(function (job) {
         return job.status === 'queued';
       }).length;
@@ -126,6 +146,10 @@ export function createYouTubeRouter({ baseDir, appUrl }) {
         configured: Boolean(config.clientId && config.clientSecret),
         connected: Boolean(tokenBundle?.tokens?.refresh_token),
         tokenSource: tokenBundle?.source || null,
+        profile,
+        defaultProfile: DEFAULT_CHANNEL_PROFILE,
+        profiles: await listProfiles(),
+        connectUrlForProfile: `/auth/youtube?profile=${encodeURIComponent(profile)}&returnTo=/youtube`,
         redirectUri: config.redirectUri,
         authScope: YOUTUBE_SCOPE,
         defaultPrivacyStatus: config.defaultPrivacyStatus,
@@ -196,13 +220,15 @@ export function createYouTubeRouter({ baseDir, appUrl }) {
     }
   });
 
-  router.post('/api/youtube/disconnect', async function (_req, res) {
+  router.post('/api/youtube/disconnect', async function (req, res) {
     try {
-      const tokenBundle = await loadTokenBundle();
-      await clearTokenBundle();
+      const profile = sanitizeProfile(req.query.profile || req.body?.profile);
+      const tokenBundle = await loadTokenBundle(profile);
+      await clearTokenBundle(profile);
       return res.json({
         ok: true,
         disconnected: true,
+        profile,
         tokenSource: tokenBundle?.source || null,
         warning: tokenBundle?.source === 'env' ? 'YOUTUBE_REFRESH_TOKEN is still configured in the environment.' : null,
       });
@@ -227,6 +253,28 @@ export function createYouTubeRouter({ baseDir, appUrl }) {
   async function ensureStorage() {
     await mkdir(dataDir, { recursive: true });
     await mkdir(uploadsDir, { recursive: true });
+  }
+
+  // List connected channel profiles by scanning data/youtube-auth.<profile>.json
+  // (plus the legacy default file if present).
+  async function listProfiles() {
+    await ensureStorage();
+    const found = new Set();
+    try {
+      for (const name of await readdir(dataDir)) {
+        const m = /^youtube-auth\.([a-z0-9_-]{1,32})\.json$/.exec(name);
+        if (m) found.add(m[1]);
+      }
+    } catch {
+      // ignore
+    }
+    try {
+      await access(tokenPath);
+      found.add(DEFAULT_CHANNEL_PROFILE);
+    } catch {
+      // legacy file absent
+    }
+    return Array.from(found).sort();
   }
 
   function startQueueLoop() {
@@ -262,17 +310,25 @@ export function createYouTubeRouter({ baseDir, appUrl }) {
 
     try {
       await ensureStorage();
-      const tokenBundle = await loadTokenBundle();
-
-      if (!tokenBundle?.tokens?.refresh_token) {
-        return;
-      }
 
       const queue = await loadQueue();
       let changed = false;
+      const tokenCache = new Map();
 
       for (const job of queue) {
         if (job.status !== 'queued') {
+          continue;
+        }
+
+        // Each job targets a channel profile (default: crypto). Load that
+        // profile's token; if the channel isn't connected yet, LEAVE the job
+        // queued (do not fail it) so it uploads once that channel is authorized.
+        const prof = sanitizeProfile(job.payload?.profile || DEFAULT_CHANNEL_PROFILE);
+        if (!tokenCache.has(prof)) {
+          tokenCache.set(prof, await loadTokenBundle(prof));
+        }
+        const tokenBundle = tokenCache.get(prof);
+        if (!tokenBundle?.tokens?.refresh_token) {
           continue;
         }
 
@@ -341,6 +397,8 @@ export function createYouTubeRouter({ baseDir, appUrl }) {
         status: {
           privacyStatus: job.payload.privacyStatus,
           ...(job.payload.publishAt ? { publishAt: job.payload.publishAt } : {}),
+          // COPPA: kids/longform videos must be self-declared made-for-kids.
+          ...(typeof job.payload.madeForKids === 'boolean' ? { selfDeclaredMadeForKids: job.payload.madeForKids } : {}),
         },
       },
       media: {
@@ -387,65 +445,67 @@ export function createYouTubeRouter({ baseDir, appUrl }) {
     };
   }
 
-  async function loadTokenBundle() {
+  async function loadTokenBundle(profile = DEFAULT_CHANNEL_PROFILE) {
     await ensureStorage();
+    const prof = sanitizeProfile(profile);
 
-    try {
-      const raw = await readFile(tokenPath, 'utf8');
-      const parsed = JSON.parse(raw);
-
-      if (parsed?.tokens) {
-        return {
-          ...parsed,
-          tokens: sanitizeTokens(parsed.tokens),
-          source: parsed.source || 'file',
-        };
-      }
-
-      if (parsed?.refresh_token) {
-        return {
-          connectedAt: parsed.connectedAt || null,
-          updatedAt: parsed.updatedAt || null,
-          source: 'file',
-          tokens: sanitizeTokens(parsed),
-        };
-      }
-    } catch {
-      // Fall through to environment tokens.
+    // Per-profile file first, then (default profile only) the legacy file, then env.
+    const candidates = [tokenPathForProfile(prof)];
+    if (prof === DEFAULT_CHANNEL_PROFILE) {
+      candidates.push(tokenPath);
     }
 
-    const refreshToken = process.env.YOUTUBE_REFRESH_TOKEN?.trim();
-    if (refreshToken) {
-      return {
-        connectedAt: null,
-        updatedAt: null,
-        source: 'env',
-        tokens: {
-          refresh_token: refreshToken,
-        },
-      };
+    for (const candidate of candidates) {
+      try {
+        const raw = await readFile(candidate, 'utf8');
+        const parsed = JSON.parse(raw);
+
+        if (parsed?.tokens) {
+          return { ...parsed, profile: prof, tokens: sanitizeTokens(parsed.tokens), source: parsed.source || 'file' };
+        }
+        if (parsed?.refresh_token) {
+          return {
+            connectedAt: parsed.connectedAt || null,
+            updatedAt: parsed.updatedAt || null,
+            source: 'file',
+            profile: prof,
+            tokens: sanitizeTokens(parsed),
+          };
+        }
+      } catch {
+        // try next candidate
+      }
+    }
+
+    // Env fallback only applies to the default profile.
+    if (prof === DEFAULT_CHANNEL_PROFILE) {
+      const refreshToken = process.env.YOUTUBE_REFRESH_TOKEN?.trim();
+      if (refreshToken) {
+        return { connectedAt: null, updatedAt: null, source: 'env', profile: prof, tokens: { refresh_token: refreshToken } };
+      }
     }
 
     return null;
   }
 
-  async function saveTokenBundle(tokens) {
+  async function saveTokenBundle(profile, tokens) {
     await ensureStorage();
+    const prof = sanitizeProfile(profile);
     const payload = {
       connectedAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       source: 'file',
+      profile: prof,
       tokens: sanitizeTokens(tokens),
     };
 
-    await writeFile(tokenPath, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
+    await writeFile(tokenPathForProfile(prof), `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
   }
 
-  async function clearTokenBundle() {
+  async function clearTokenBundle(profile = DEFAULT_CHANNEL_PROFILE) {
     await ensureStorage();
-
     try {
-      await rm(tokenPath);
+      await rm(tokenPathForProfile(profile));
     } catch {
       // Ignore if the file is already gone.
     }
@@ -489,6 +549,10 @@ export function createYouTubeRouter({ baseDir, appUrl }) {
     const publishAt = parsePublishAt(body.publishAt);
     const privacyStatus = publishAt ? 'private' : normalizePrivacyStatus(body.privacyStatus || activeConfig.defaultPrivacyStatus);
     const categoryId = typeof body.categoryId === 'string' && body.categoryId.trim() ? body.categoryId.trim() : activeConfig.defaultCategoryId;
+    const profile = sanitizeProfile(body.profile || DEFAULT_CHANNEL_PROFILE);
+    const madeForKids = typeof body.madeForKids === 'boolean'
+      ? body.madeForKids
+      : (typeof body.made_for_kids === 'boolean' ? body.made_for_kids : undefined);
 
     return {
       title,
@@ -499,6 +563,8 @@ export function createYouTubeRouter({ baseDir, appUrl }) {
       publishAt,
       privacyStatus,
       categoryId,
+      profile,
+      ...(typeof madeForKids === 'boolean' ? { madeForKids } : {}),
     };
   }
 

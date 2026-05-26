@@ -81,6 +81,8 @@ def main(argv=None) -> int:
         print(f"longform_pipeline: {exc}")
         return 0
 
+    # Target the separate kids channel profile (Node uploads with its token).
+    video.profile = video.profile or os.getenv("YOUTUBE_KIDS_PROFILE", "kids")
     print(json.dumps({"runId": run_id, "mode": mode, "payload": video.to_publish_payload()}, indent=2))
 
     publish_opt_in = args.publish and os.getenv("LONGFORM_PUBLISH", "0").strip() == "1"
