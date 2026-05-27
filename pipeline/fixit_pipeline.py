@@ -72,9 +72,11 @@ def render_neutral_background(output_path: Path, seconds: int, ffmpeg_binary: st
     """
     output_path.parent.mkdir(parents=True, exist_ok=True)
     w, h = TARGET_SIZE
+    # d MUST be the full clip length: the gradients source emits EOF at `d`, so a
+    # short d would let -shortest truncate the final Short to the background.
     gradient = (
         f"gradients=s={w}x{h}:c0=0x14304a:c1=0x2f6f8f:"
-        f"x0=0:y0=0:x1={w}:y1={h}:d=6:speed=0.015:nb_colors=2:seed={seed}"
+        f"x0=0:y0=0:x1={w}:y1={h}:d={seconds}:speed=0.015:nb_colors=2:seed={seed}"
     )
     common_tail = ["-t", str(seconds), "-r", "30", "-pix_fmt", "yuv420p",
                    "-c:v", "libx264", "-preset", "veryfast", str(output_path)]
@@ -100,7 +102,7 @@ def _build_video(topic: str, script: str, packaging: dict, run_dir: Path):
     from daily_pipeline_voicebox import (
         load_config, resolve_ffmpeg_binary, synthesize_voiceover,
         transcribe_audio, write_srt, render_final_short, relative_path,
-        schedule_publish_time, UPLOADS_DIR,
+        schedule_publish_time, UPLOADS_DIR, _probe_seconds,
     )
 
     config = load_config()
@@ -117,8 +119,12 @@ def _build_video(topic: str, script: str, packaging: dict, run_dir: Path):
     subtitles_path = run_dir / "subtitles.srt"
     write_srt(segments, subtitles_path)
 
+    # Size the background to the actual narration (DIY scripts vary in length) so
+    # render_final_short's -shortest never truncates the voiceover. Pad ~0.5s.
+    voice_seconds = _probe_seconds(voiceover_path, ffmpeg_binary)
+    bg_seconds = max(TARGET_SECONDS, int(voice_seconds) + 1) if voice_seconds > 0 else TARGET_SECONDS
     background_path = run_dir / "background.mp4"
-    render_neutral_background(background_path, TARGET_SECONDS, ffmpeg_binary,
+    render_neutral_background(background_path, bg_seconds, ffmpeg_binary,
                               seed=abs(hash(topic)) % 1000)
 
     run_id = run_dir.name
